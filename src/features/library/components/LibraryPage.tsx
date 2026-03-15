@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button"
 export function LibraryPage() {
-    return <div>Library Page — TODO</div>;
+    return <div>
+        <Button>Demo</Button>
+    </div>;
 }
