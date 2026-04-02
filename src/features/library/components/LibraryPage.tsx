@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLibraryFiltersStore } from '../hooks/useLibraryFiltersStore';
+import { useVideos, useImportVideo } from '../hooks/useVideos';
 import {
   Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
   Loader2, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { videosApi } from '@/shared/lib/api';
+import { extractApiError } from '@/shared/lib/httpClient';
 import { cn } from '@/lib/utils';
 import type { VideoResponse } from '@/shared/types/api';
 
@@ -96,35 +97,34 @@ function VideoCard({ video }: { video: VideoResponse }) {
 }
 
 export function LibraryPage() {
-  const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('All');
-  const [selectedLang, setSelectedLang] = useState('All');
+  // Persisted filter state (Zustand — survives navigation)
+  const search           = useLibraryFiltersStore((s) => s.search);
+  const selectedLang     = useLibraryFiltersStore((s) => s.selectedLang);
+  const selectedLevel    = useLibraryFiltersStore((s) => s.selectedLevel);
+  const setSearch        = useLibraryFiltersStore((s) => s.setSearch);
+  const setSelectedLang  = useLibraryFiltersStore((s) => s.setSelectedLang);
+  const setSelectedLevel = useLibraryFiltersStore((s) => s.setSelectedLevel);
+
+  // Ephemeral form state (local — cleared on unmount)
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [importError, setImportError] = useState('');
 
-  const { data: videos = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['videos', selectedLang, selectedLevel],
-    queryFn: () =>
-      videosApi.list({
-        language: selectedLang !== 'All' ? selectedLang : undefined,
-        level: selectedLevel !== 'All' ? selectedLevel : undefined,
-      }),
+  const { data: videos = [], isLoading, isError, refetch } = useVideos({
+    language: selectedLang !== 'All' ? selectedLang : undefined,
+    level: selectedLevel !== 'All' ? selectedLevel : undefined,
   });
 
-  const importMutation = useMutation({
-    mutationFn: (url: string) =>
-      videosApi.import({ youtube_url: url, language: selectedLang !== 'All' ? selectedLang : 'en' }),
-    onSuccess: () => {
-      setYoutubeUrl('');
-      setImportError('');
-      queryClient.invalidateQueries({ queryKey: ['videos'] });
-    },
-    onError: (err: unknown) => {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setImportError(typeof detail === 'string' ? detail : 'Failed to import video');
-    },
-  });
+  const importMutation = useImportVideo();
+
+  const handleImport = (url: string) => {
+    importMutation.mutate(
+      { youtube_url: url, language: selectedLang !== 'All' ? selectedLang : 'en' },
+      {
+        onSuccess: () => { setYoutubeUrl(''); setImportError(''); },
+        onError: (err) => setImportError(extractApiError(err, 'Failed to import video')),
+      },
+    );
+  };
 
   const filtered = videos.filter((v) => {
     const q = search.toLowerCase();
@@ -165,9 +165,7 @@ export function LibraryPage() {
                   value={youtubeUrl}
                   onChange={(e) => { setYoutubeUrl(e.target.value); setImportError(''); }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && youtubeUrl.trim()) {
-                      importMutation.mutate(youtubeUrl.trim());
-                    }
+                    if (e.key === 'Enter' && youtubeUrl.trim()) handleImport(youtubeUrl.trim());
                   }}
                   className="w-full pl-9 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
                 />
@@ -175,7 +173,7 @@ export function LibraryPage() {
               <Button
                 size="sm"
                 disabled={!youtubeUrl.trim() || importMutation.isPending}
-                onClick={() => importMutation.mutate(youtubeUrl.trim())}
+                onClick={() => handleImport(youtubeUrl.trim())}
                 className="gap-1.5"
               >
                 {importMutation.isPending ? (

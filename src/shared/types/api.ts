@@ -43,6 +43,7 @@ export interface TranscriptResponse {
   start_time: number;
   end_time: number;
   language: string;
+  translation?: string;
 }
 
 export interface LevelAnalysisResponse {

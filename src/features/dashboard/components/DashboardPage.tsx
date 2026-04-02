@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   Flame, TrendingUp, Clock, PlayCircle, BookOpen,
   ChevronRight, Target, Award, Loader2, AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { dashboardApi, videosApi } from '@/shared/lib/api';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
+import { useDashboardStats, useDashboardHistory } from '../hooks/useDashboard';
+import { useVideos } from '@/features/library/hooks/useVideos';
 import { cn } from '@/lib/utils';
 
 function formatDate(iso: string) {
@@ -40,7 +40,6 @@ function StatCard({ icon, label, value, sub, accent }: {
   );
 }
 
-// Mock weekly activity (backend doesn't have this endpoint yet)
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const WEEK_SESSIONS = [2, 1, 0, 3, 2, 1, 0];
 
@@ -48,20 +47,9 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
-  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: dashboardApi.getStats,
-  });
-
-  const { data: history = [], isLoading: historyLoading } = useQuery({
-    queryKey: ['dashboard-history', 5],
-    queryFn: () => dashboardApi.getHistory({ limit: 5 }),
-  });
-
-  const { data: videos = [] } = useQuery({
-    queryKey: ['videos'],
-    queryFn: () => videosApi.list(),
-  });
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useDashboardStats();
+  const { data: history = [], isLoading: historyLoading } = useDashboardHistory({ limit: 5 });
+  const { data: videos = [] } = useVideos();
 
   const today = new Date();
   const hour = today.getHours();
@@ -90,41 +78,16 @@ export function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              icon={<Flame className="h-5 w-5 text-orange-500" />}
-              label="Day Streak"
-              value={`${stats.streak_days}`}
-              accent="bg-orange-100"
-            />
-            <StatCard
-              icon={<Target className="h-5 w-5 text-blue-600" />}
-              label="Avg. Accuracy"
-              value={`${Math.round(stats.average_accuracy)}%`}
-              sub={`${stats.total_sessions} sessions`}
-              accent="bg-blue-100"
-            />
-            <StatCard
-              icon={<Clock className="h-5 w-5 text-violet-600" />}
-              label="Study Time"
-              value={`${Math.round(stats.total_time_minutes)}m`}
-              sub="Total practice"
-              accent="bg-violet-100"
-            />
-            <StatCard
-              icon={<Award className="h-5 w-5 text-green-600" />}
-              label="Videos Studied"
-              value={`${stats.total_videos}`}
-              sub="All time"
-              accent="bg-green-100"
-            />
+            <StatCard icon={<Flame className="h-5 w-5 text-orange-500" />} label="Day Streak" value={`${stats.streak_days}`} accent="bg-orange-100" />
+            <StatCard icon={<Target className="h-5 w-5 text-blue-600" />} label="Avg. Accuracy" value={`${Math.round(stats.average_accuracy)}%`} sub={`${stats.total_sessions} sessions`} accent="bg-blue-100" />
+            <StatCard icon={<Clock className="h-5 w-5 text-violet-600" />} label="Study Time" value={`${Math.round(stats.total_time_minutes)}m`} sub="Total practice" accent="bg-violet-100" />
+            <StatCard icon={<Award className="h-5 w-5 text-green-600" />} label="Videos Studied" value={`${stats.total_videos}`} sub="All time" accent="bg-green-100" />
           </div>
         )}
 
         {/* Weekly activity */}
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-            This Week
-          </h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">This Week</h2>
           <div className="bg-card border border-border rounded-xl p-5">
             <div className="flex items-end gap-3 h-20">
               {WEEK_DAYS.map((day, i) => (
@@ -147,13 +110,8 @@ export function DashboardPage() {
           {/* Recent sessions */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Recent Sessions
-              </h2>
-              <button
-                onClick={() => navigate('/history')}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
-              >
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent Sessions</h2>
+              <button onClick={() => navigate('/history')} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors">
                 View all <ChevronRight className="h-3 w-3" />
               </button>
             </div>
@@ -172,9 +130,7 @@ export function DashboardPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{h.video_title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(h.completed_at)} · {Math.round(h.duration_minutes)}m
-                      </p>
+                      <p className="text-xs text-muted-foreground">{formatDate(h.completed_at)} · {Math.round(h.duration_minutes)}m</p>
                     </div>
                     <ScoreBadge score={h.score} />
                   </div>
@@ -185,9 +141,7 @@ export function DashboardPage() {
 
           {/* Suggested next */}
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-              Suggested Next
-            </h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Suggested Next</h2>
             <div className="space-y-2">
               {videos.slice(0, 3).map((v) => (
                 <div key={v.id} className="bg-card border border-border rounded-lg flex items-center gap-3 overflow-hidden">

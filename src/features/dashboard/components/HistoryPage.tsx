@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { RotateCcw, Clock, Calendar, Filter, Loader2, AlertCircle, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { dashboardApi } from '@/shared/lib/api';
+import { useDashboardHistory } from '../hooks/useDashboard';
 import { cn } from '@/lib/utils';
 
 function formatDate(iso: string) {
@@ -30,10 +29,7 @@ export function HistoryPage() {
   const navigate = useNavigate();
   const [sort, setSort] = useState<SortKey>('recent');
 
-  const { data: history = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['history-full'],
-    queryFn: () => dashboardApi.getHistory({ limit: 100 }),
-  });
+  const { data: history = [], isLoading, isError, refetch } = useDashboardHistory({ limit: 100 });
 
   const sorted = [...history].sort((a, b) =>
     sort === 'best'
@@ -128,7 +124,6 @@ export function HistoryPage() {
                       </span>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right hidden sm:block">
                       <ScoreBadge score={entry.score} />
@@ -138,12 +133,7 @@ export function HistoryPage() {
                         </p>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 shrink-0"
-                      onClick={() => navigate(`/dictation/${entry.id}`)}
-                    >
+                    <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => navigate(`/dictation/${entry.id}`)}>
                       <RotateCcw className="h-3.5 w-3.5" />Retry
                     </Button>
                   </div>

@@ -2,43 +2,30 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { authApi } from '@/shared/lib/api';
-import { useAuthStore } from '../hooks/useAuthStore';
+import { useRegister } from '../hooks/useAuth';
+import { extractApiError } from '@/shared/lib/httpClient';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
+  const registerMutation = useRegister();
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!displayName.trim() || !email.trim() || !password) return;
     setError('');
-    setLoading(true);
-    try {
-      await authApi.register({ email: email.trim(), display_name: displayName.trim(), password });
-      // Auto-login after register
-      const tokens = await authApi.login(email.trim(), password);
-      localStorage.setItem('access_token', tokens.access_token);
-      const user = await authApi.getMe();
-      login(user, tokens.access_token, tokens.refresh_token);
-      navigate('/library');
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setError(detail.map((d: { msg: string }) => d.msg).join(', '));
-      } else {
-        setError(typeof detail === 'string' ? detail : 'Registration failed');
-      }
-    } finally {
-      setLoading(false);
-    }
+    registerMutation.mutate(
+      { email: email.trim(), display_name: displayName.trim(), password },
+      {
+        onSuccess: () => navigate('/library'),
+        onError: (err) => setError(extractApiError(err, 'Registration failed')),
+      },
+    );
   };
 
   return (
@@ -108,8 +95,8 @@ export function RegisterPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full gap-2" disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          <Button type="submit" className="w-full gap-2" disabled={registerMutation.isPending}>
+            {registerMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Create Account
           </Button>
         </form>

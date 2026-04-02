@@ -1,16 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import ReactPlayer from 'react-player';
-import type { SyntheticEvent } from 'react';
 import {
-  ArrowLeft, RotateCcw, Play, Volume2, VolumeX,
-  SkipBack, ChevronRight, Eye, Trophy,
+  ArrowLeft, RotateCcw, Play, Pause,
+  ChevronLeft, ChevronRight, ChevronDown, Eye, Trophy,
   Loader2, AlertCircle, CheckCircle2, XCircle,
-  MinusCircle, Clock, Gauge,
+  MinusCircle, Clock, Languages,
 } from 'lucide-react';
+import { YoutubePlayer } from './YoutubePlayer';
+import type { YoutubePlayerHandle } from './YoutubePlayer';
+import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
+import { useDictationSession, useSubmitAnswer } from '../hooks/useDictation';
+import { useVideo, useVideoTranscripts } from '@/features/library/hooks/useVideos';
 import { Button } from '@/components/ui/button';
-import { videosApi, dictationApi } from '@/shared/lib/api';
 import { cn } from '@/lib/utils';
 import type { TranscriptResponse } from '@/shared/types/api';
 
@@ -32,14 +33,6 @@ interface LocalResult {
   score: number;
   wrongAttempts: number;
   correctText: string;
-}
-
-// Payload passed to the background scoring mutation
-interface SubmitPayload {
-  userInput: string;
-  sentenceIndex: number;
-  hintsUsed: number;
-  replayCount: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,7 +60,20 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];
+/**
+ * Binary search: returns the index of the segment containing `time`,
+ * or -1 if no segment covers that timestamp.
+ */
+function findSegmentByTime(segs: TranscriptResponse[], time: number): number {
+  let lo = 0, hi = segs.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (time < segs[mid].start_time) hi = mid - 1;
+    else if (time >= segs[mid].end_time) lo = mid + 1;
+    else return mid;
+  }
+  return -1;
+}
 
 // ─── Word Chip ────────────────────────────────────────────────────────────────
 
@@ -111,17 +117,24 @@ export function DictationPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
 
-  const playerRef = useRef<HTMLVideoElement>(null);
+  const playerHandle = useRef<YoutubePlayerHandle>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const segmentListRef = useRef<HTMLDivElement>(null);
+  /** Ref mirror of liveSegmentIdx — avoids stale closure in handleTimeUpdate. */
+  const liveSegmentIdxRef = useRef(-1);
+  const [liveSegmentIdx, setLiveSegmentIdx] = useState(-1);
 
   /**
    * After user presses Play once, autoPlayRef = true so subsequent sentences
    * play automatically on sentence switch.
    */
   const autoPlayRef = useRef(false);
-  /** Mirror of playbackRate state — safe to read inside effects/timeouts. */
-  const playbackRateRef = useRef(1);
+  /**
+   * True while the video is playing freely (user clicked the player's own play
+   * button, not "Play Sentence"). When true, currentIndex follows the video
+   * position and the guided auto-seek effect is suppressed.
+   */
+  const freePlayRef = useRef(false);
   /**
    * Stable pointer to the latest handleNext. Used by the auto-advance effect
    * so the effect only depends on [phase] and never creates double-timeouts
@@ -129,8 +142,16 @@ export function DictationPage() {
    */
   const handleNextRef = useRef<() => void>(() => {});
 
+  // ── Persisted user preferences ─────────────────────────────────────────────
+  const autoNext       = usePlayerPrefsStore((s) => s.autoNext);
+  const toggleAutoNext = usePlayerPrefsStore((s) => s.toggleAutoNext);
+  /** Ref mirror of autoNext — lets auto-advance effect read the latest value
+   *  without being in its dependency array (avoids retriggering on toggle). */
+  const autoNextRef = useRef(autoNext);
+  useEffect(() => { autoNextRef.current = autoNext; }, [autoNext]);
+
   // ── API state ──────────────────────────────────────────────────────────────
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const sessionId = useDictationSession(videoId);
   const [currentIndex, setCurrentIndex] = useState(0);
   /**
    * Results are added IMMEDIATELY when a sentence is completed locally.
@@ -144,82 +165,64 @@ export function DictationPage() {
   const [currentWordIdx, setCurrentWordIdx] = useState(0);
   const [inputValue, setInputValue] = useState('');
   const [flashingIdx, setFlashingIdx] = useState<number | null>(null);
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
 
   // ── Player state ───────────────────────────────────────────────────────────
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
   const [playCount, setPlayCount] = useState(0);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
-  const { data: video, isLoading: videoLoading, isError: videoError } = useQuery({
-    queryKey: ['video', videoId],
-    queryFn: () => videosApi.get(videoId!),
-    enabled: !!videoId,
-  });
-
-  const { data: sentences = [], isLoading: sentencesLoading } = useQuery<TranscriptResponse[]>({
-    queryKey: ['transcripts', videoId],
-    queryFn: () => videosApi.getTranscripts(videoId!),
-    enabled: !!videoId,
-  });
+  const { data: video, isLoading: videoLoading, isError: videoError } = useVideo(videoId);
+  const { data: sentences = [], isLoading: sentencesLoading } = useVideoTranscripts(videoId);
 
   // ── Effects ────────────────────────────────────────────────────────────────
-
-  // Create dictation session once on mount
-  useEffect(() => {
-    if (!videoId || sessionId) return;
-    dictationApi.createSession(videoId).then((s) => setSessionId(s.id)).catch(console.error);
-  }, [videoId, sessionId]);
 
   // Reset all practice state when the active sentence changes
   useEffect(() => {
     const sentence = sentences[currentIndex];
     if (!sentence) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
     setWords(buildWordStates(sentence));
     setCurrentWordIdx(0);
     setInputValue('');
-    setPhase('idle');
+    setPhase('practicing');
     setPlayCount(0);
-    setShowAnswer(false);
+    setHintsUsed(0);
+    setShowTranslation(false);
     setFlashingIdx(null);
-  }, [currentIndex, sentences]); // eslint-disable-line react-hooks/set-state-in-effect
-
-  // Keep playback rate ref in sync and apply to the player DOM element
-  useEffect(() => {
-    playbackRateRef.current = playbackRate;
-    if (playerRef.current) playerRef.current.playbackRate = playbackRate;
-  }, [playbackRate, isPlaying]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [currentIndex, sentences]);
 
   /**
-   * Auto-play when sentence resets to idle — only triggers if the user has
-   * already played at least once (autoPlayRef.current = true).
+   * Auto-play when the active sentence changes — only triggers if the user has
+   * already played at least once (autoPlayRef.current = true) and the video
+   * isn't already playing freely.
    */
   useEffect(() => {
-    if (!autoPlayRef.current || phase !== 'idle') return;
+    if (!autoPlayRef.current) return;
+    if (freePlayRef.current) return; // video is playing freely — don't seek back
     const sentence = sentences[currentIndex];
-    if (!sentence || !playerRef.current) return;
+    if (!sentence || !playerHandle.current) return;
     const t = setTimeout(() => {
-      if (!playerRef.current) return;
-      playerRef.current.currentTime = sentence.start_time;
-      playerRef.current.playbackRate = playbackRateRef.current;
-      playerRef.current.play().catch(() => {});
-      setIsPlaying(true);
+      if (!playerHandle.current) return;
+      playerHandle.current.seekTo(sentence.start_time);
+      playerHandle.current.play();
+      setIsVideoPlaying(true);
       setPhase('playing');
       setPlayCount(1);
     }, 100);
     return () => clearTimeout(t);
-  }, [phase, currentIndex, sentences]);
+  }, [currentIndex, sentences]);
 
-  // Keep input focused during active phases
+  // Keep input focused while the user should be typing
   useEffect(() => {
-    if (phase === 'practicing' || phase === 'playing') {
+    if (phase !== 'completed') {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [phase]);
+  }, [phase, currentIndex]);
 
   // Scroll the active segment into view in the right panel
   useEffect(() => {
@@ -240,64 +243,48 @@ export function DictationPage() {
   const latestResult = results.find((r) => r.sentenceIndex === currentIndex);
 
   // ── Background scoring mutation ────────────────────────────────────────────
-  /**
-   * FIX: This mutation is fire-and-forget for scoring only.
-   * It does NOT control navigation or phase transitions.
-   * Completion happens locally (see completeSentence below).
-   */
-  const submitMutation = useMutation({
-    mutationFn: (payload: SubmitPayload) => {
-      // Session may not exist yet — that's fine, we already marked locally
-      if (!sessionId) return Promise.resolve(null);
-      return dictationApi.submitAnswer(sessionId, {
-        sentence_index: payload.sentenceIndex,
-        user_input: payload.userInput,
-        hints_used: payload.hintsUsed,
-        replay_count: payload.replayCount,
-      });
-    },
-    // Only update the score for the specific sentence — never change phase
-    onSuccess: (result, payload) => {
-      if (!result) return;
-      setResults((prev) =>
-        prev.map((r) =>
-          r.sentenceIndex === payload.sentenceIndex ? { ...r, score: result.score } : r,
-        ),
-      );
-    },
-  });
+  // Fire-and-forget scoring hook — session may not exist yet, that's fine.
+  const submitMutation = useSubmitAnswer(sessionId);
 
   // ── Sentence completion (local, immediate) ─────────────────────────────────
   /**
-   * FIX: completeSentence is the single source of truth for finishing a sentence.
-   * It updates results and phase IMMEDIATELY without waiting for the server,
+   * completeSentence is the single source of truth for finishing a sentence.
+   * Updates results and phase IMMEDIATELY without waiting for the server,
    * then fires the scoring mutation in the background.
-   *
-   * This eliminates the dependency chain:
-   *   wrong: validateWord → mutate → onSuccess → setPhase → auto-advance
-   *   right: validateWord → completeSentence → setPhase → auto-advance
    */
   const completeSentence = useCallback(
     (userInput: string, hintsUsed: number, currentWords: WordState[]) => {
       const totalWrong = currentWords.reduce((acc, w) => acc + w.wrongAttempts, 0);
-      // Add result immediately — score starts at 100 (provisional)
+      const capturedIndex = currentIndex;
       setResults((prev) => [
-        ...prev.filter((r) => r.sentenceIndex !== currentIndex), // deduplicate
+        ...prev.filter((r) => r.sentenceIndex !== capturedIndex),
         {
-          sentenceIndex: currentIndex,
+          sentenceIndex: capturedIndex,
           score: 100,
           wrongAttempts: totalWrong,
           correctText: currentSentence?.text ?? '',
         },
       ]);
       setPhase('completed');
-      // Submit for real score in background (failure is non-fatal)
-      submitMutation.mutate({
-        userInput,
-        sentenceIndex: currentIndex,
-        hintsUsed,
-        replayCount: Math.max(0, playCount - 1),
-      });
+      // Submit for real score in background — update score on success
+      submitMutation.mutate(
+        {
+          sentence_index: capturedIndex,
+          user_input: userInput,
+          hints_used: hintsUsed,
+          replay_count: Math.max(0, playCount - 1),
+        },
+        {
+          onSuccess: (result) => {
+            if (!result) return;
+            setResults((prev) =>
+              prev.map((r) =>
+                r.sentenceIndex === capturedIndex ? { ...r, score: result.score } : r,
+              ),
+            );
+          },
+        },
+      );
     },
     [currentIndex, currentSentence, playCount, submitMutation],
   );
@@ -305,30 +292,52 @@ export function DictationPage() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handlePlay = useCallback(() => {
-    if (!currentSentence || !playerRef.current) return;
+    if (!currentSentence || !playerHandle.current) return;
     autoPlayRef.current = true;
-    playerRef.current.currentTime = currentSentence.start_time;
-    playerRef.current.playbackRate = playbackRateRef.current;
-    playerRef.current.play().catch(() => {});
-    setIsPlaying(true);
+    freePlayRef.current = false; // switch to guided play mode
+    playerHandle.current.seekTo(currentSentence.start_time);
+    playerHandle.current.play();
+    setIsVideoPlaying(true);
     setPhase('playing');
     setPlayCount((c) => c + 1);
   }, [currentSentence]);
 
-  const handleRewind = useCallback(() => {
-    if (!playerRef.current) return;
-    playerRef.current.currentTime = Math.max(0, playerRef.current.currentTime - 5);
-  }, []);
-
   const handleTimeUpdate = useCallback(
-    (e: SyntheticEvent<HTMLVideoElement>) => {
-      if (phase === 'playing' && currentSentence && e.currentTarget.currentTime >= currentSentence.end_time) {
-        e.currentTarget.pause();
-        setIsPlaying(false);
+    (time: number) => {
+      // Track live position in segment list regardless of phase
+      if (sentences.length > 0) {
+        const idx = findSegmentByTime(sentences, time);
+        if (idx !== liveSegmentIdxRef.current) {
+          liveSegmentIdxRef.current = idx;
+          setLiveSegmentIdx(idx);
+          // During free play, keep the active sentence in sync with video
+          if (freePlayRef.current && idx >= 0) {
+            setCurrentIndex(idx);
+          }
+        }
+      }
+      // Stop playback at sentence boundary during guided play
+      if (phase === 'playing' && currentSentence && time >= currentSentence.end_time) {
+        playerHandle.current?.pause();
         setPhase('practicing');
       }
     },
-    [phase, currentSentence],
+    [phase, currentSentence, sentences],
+  );
+
+  const handlePlayChange = useCallback(
+    (playing: boolean) => {
+      setIsVideoPlaying(playing);
+      if (playing && phase !== 'playing') {
+        // Video started outside guided play — enter free-play mode
+        freePlayRef.current = true;
+      }
+      if (!playing) {
+        freePlayRef.current = false;
+      }
+      if (!playing && phase === 'playing') setPhase('practicing');
+    },
+    [phase],
   );
 
   /**
@@ -360,7 +369,7 @@ export function DictationPage() {
         if (next >= words.length) {
           // All words correct — complete immediately, don't wait for server
           const assembled = updated.map((w) => w.original).join(' ');
-          completeSentence(assembled, showAnswer ? 1 : 0, updated);
+          completeSentence(assembled, hintsUsed, updated);
         }
       } else {
         // Wrong answer — flash the active chip, clear input, increment attempts
@@ -372,7 +381,7 @@ export function DictationPage() {
         setInputValue('');
       }
     },
-    [words, currentWordIdx, completeSentence, showAnswer],
+    [words, currentWordIdx, completeSentence, hintsUsed],
   );
 
   const handleInputChange = useCallback(
@@ -397,26 +406,42 @@ export function DictationPage() {
         const typed = inputValue.trim();
         if (typed) validateWord(typed);
       }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        handleNextRef.current(); // advance via stable ref — no extra dep needed
+      }
     },
     [inputValue, validateWord],
   );
 
-  const handleShowAnswer = useCallback(() => {
+  /** Reveals the current active word, then moves to the next — one word per click. */
+  const handleRevealWord = useCallback(() => {
     if (currentWordIdx >= words.length) return;
-    setShowAnswer(true);
+    const next = currentWordIdx + 1;
     const updated = words.map((w, i) =>
-      i >= currentWordIdx ? { ...w, status: 'correct' as WordStatus } : w,
+      i === currentWordIdx
+        ? { ...w, status: 'correct' as WordStatus }
+        : i === next
+        ? { ...w, status: 'active' as WordStatus }
+        : w,
     );
     setWords(updated);
-    setCurrentWordIdx(words.length);
+    setCurrentWordIdx(next);
     setInputValue('');
-    const assembled = updated.map((w) => w.original).join(' ');
-    completeSentence(assembled, 1, updated);
-  }, [words, currentWordIdx, completeSentence]);
+    setHintsUsed((h) => h + 1);
+    if (next >= words.length) {
+      const assembled = updated.map((w) => w.original).join(' ');
+      completeSentence(assembled, hintsUsed + 1, updated);
+    }
+  }, [words, currentWordIdx, completeSentence, hintsUsed]);
 
   const handleSkip = useCallback(() => {
     completeSentence('', 0, words);
   }, [completeSentence, words]);
+
+  const handlePrev = useCallback(() => {
+    if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+  }, [currentIndex]);
 
   const handleNext = useCallback(() => {
     const next = currentIndex + 1;
@@ -450,15 +475,17 @@ export function DictationPage() {
   }, [handleNext]);
 
   /**
-   * FIX: Auto-advance effect.
+   * Auto-advance effect.
    * Only depends on [phase] — fires exactly once when phase becomes 'completed'.
-   * Reads handleNextRef.current at call time so it always has fresh state.
-   * This eliminates the double-trigger caused by handleNext reference churn
-   * when results updates in the same render batch as phase.
+   * Reads handleNextRef/autoNextRef at call time so fresh values are used
+   * without adding them as deps (avoids double-trigger on reference churn).
    */
   useEffect(() => {
     if (phase !== 'completed') return;
-    const t = setTimeout(() => handleNextRef.current(), 1000);
+    const t = setTimeout(() => {
+      // Check at callback time, not at setup — handles toggling off during the delay
+      if (autoNextRef.current) handleNextRef.current();
+    }, 4000);
     return () => clearTimeout(t);
   }, [phase]);
 
@@ -516,11 +543,29 @@ export function DictationPage() {
             <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium">
               {currentIndex + 1} / {totalSentences}
             </span>
+
+            {/* Auto-Next toggle */}
             <button
-              onClick={() => setMuted((m) => !m)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              onClick={toggleAutoNext}
+              title={autoNext ? 'Auto-Next: On — click to disable' : 'Auto-Next: Off — click to enable'}
+              className={cn(
+                'hidden sm:flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors',
+                autoNext
+                  ? 'border-primary/40 bg-primary/5 text-primary'
+                  : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
+              )}
             >
-              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              <span>Auto Next</span>
+              {/* Toggle pill */}
+              <span className={cn(
+                'relative inline-flex h-4 w-7 rounded-full transition-colors duration-200',
+                autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
+              )}>
+                <span className={cn(
+                  'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
+                  autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
+                )} />
+              </span>
             </button>
           </div>
         </div>
@@ -541,76 +586,51 @@ export function DictationPage() {
           <div className="max-w-2xl mx-auto px-4 py-5 flex flex-col gap-4 pb-28 sm:pb-6">
 
             {/* Video player */}
-            <div className="w-full rounded-2xl overflow-hidden border border-border bg-black shadow-md aspect-video">
-              <ReactPlayer
-                ref={playerRef}
-                src={`https://www.youtube.com/watch?v=${video.youtube_id}`}
-                playing={isPlaying}
-                muted={muted}
-                onTimeUpdate={handleTimeUpdate}
-                onEnded={() => { setIsPlaying(false); if (phase === 'playing') setPhase('practicing'); }}
-                onPause={() => setIsPlaying(false)}
-                onPlay={() => setIsPlaying(true)}
-                width="100%"
-                height="100%"
-              />
-            </div>
+            <YoutubePlayer
+              ref={playerHandle}
+              videoId={video.youtube_id}
+              onTimeUpdate={handleTimeUpdate}
+              onPlayChange={handlePlayChange}
+            />
 
-            {/* Player controls */}
-            <div className="flex items-center gap-2 bg-muted/40 rounded-2xl px-4 py-3 border border-border">
-              <button
-                onClick={handleRewind}
-                title="Rewind 5s"
-                className="p-2 rounded-xl hover:bg-background text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <SkipBack className="h-4 w-4" />
-              </button>
-
-              <button
-                onClick={handlePlay}
-                disabled={phase === 'playing'}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all',
-                  phase === 'playing'
-                    ? 'bg-primary/10 text-primary cursor-not-allowed'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm active:scale-95',
-                )}
-              >
-                {phase === 'playing' ? (
-                  <><span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Playing…</>
-                ) : playCount === 0 ? (
-                  <><Play className="h-3.5 w-3.5 fill-current" /> Play Sentence</>
-                ) : (
-                  <><RotateCcw className="h-3.5 w-3.5" /> Replay</>
-                )}
-              </button>
-
-              <div className="flex-1" />
-
-              {/* Playback speed */}
-              <div className="flex items-center gap-1.5">
-                <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
-                <div className="flex gap-0.5">
-                  {SPEEDS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setPlaybackRate(s)}
-                      className={cn(
-                        'px-2 py-0.5 rounded-lg text-xs font-medium transition-colors',
-                        playbackRate === s
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-background',
-                      )}
-                    >
-                      {s}×
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* Sentence play controls */}
+            <div className="flex items-center gap-2">
+              {/* Free-play: show Pause */}
+              {isVideoPlaying && phase !== 'playing' ? (
+                <button
+                  onClick={() => { playerHandle.current?.pause(); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                >
+                  <Pause className="h-3.5 w-3.5 fill-current" /> Pause
+                </button>
+              ) : (
+                /* Guided play: Play Sentence / Playing… / Replay */
+                <button
+                  onClick={handlePlay}
+                  disabled={phase === 'playing'}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all',
+                    phase === 'playing'
+                      ? 'bg-primary/10 text-primary cursor-not-allowed'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm active:scale-95',
+                  )}
+                >
+                  {phase === 'playing' ? (
+                    <><span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Playing…</>
+                  ) : playCount === 0 ? (
+                    <><Play className="h-3.5 w-3.5 fill-current" /> Play Sentence</>
+                  ) : (
+                    <><RotateCcw className="h-3.5 w-3.5" /> Replay</>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Sentence practice card */}
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+            <div className={cn(
+              'bg-card rounded-2xl overflow-hidden shadow-sm border transition-colors duration-500',
+              phase === 'completed' ? 'border-green-300 bg-green-50/30' : 'border-border',
+            )}>
 
               {/* Card header */}
               <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center justify-between gap-3">
@@ -618,7 +638,7 @@ export function DictationPage() {
                   <span className="text-sm font-semibold">Sentence {currentIndex + 1}</span>
                   <span className="text-xs text-muted-foreground">of {totalSentences}</span>
                 </div>
-                {phase !== 'idle' && totalWords > 0 && (
+                {totalWords > 0 && (
                   <div className="flex items-center gap-2 flex-1 justify-center">
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {completedWords}/{totalWords} words
@@ -631,32 +651,29 @@ export function DictationPage() {
                     </div>
                   </div>
                 )}
-                <button
-                  onClick={handleNext}
-                  disabled={isLastSentence}
-                  className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors"
-                >
-                  Next <ChevronRight className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={handlePrev}
+                    disabled={currentIndex === 0}
+                    title="Previous sentence"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1.5 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    title="Next sentence  (Tab)"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    Next <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
 
               <div className="p-5 flex flex-col gap-5">
 
-                {/* Idle prompt */}
-                {phase === 'idle' && (
-                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
-                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-1">
-                      <Play className="h-5 w-5 text-muted-foreground fill-current" />
-                    </div>
-                    <p className="text-sm font-medium text-foreground">Press Play to begin</p>
-                    <p className="text-xs text-muted-foreground">
-                      Listen to the sentence, then type each word you hear.
-                    </p>
-                  </div>
-                )}
-
-                {/* Word chips — shown while playing, practicing, or completed */}
-                {phase !== 'idle' && words.length > 0 && (
+                {/* Word chips */}
+                {words.length > 0 && (
                   <div className="flex flex-wrap gap-2 min-h-10">
                     {words.map((word, i) => (
                       <WordChip key={i} word={word} isFlashing={flashingIdx === i} />
@@ -665,7 +682,7 @@ export function DictationPage() {
                 )}
 
                 {/* Input area (desktop) */}
-                {(phase === 'practicing' || phase === 'playing') && (
+                {phase !== 'completed' && (
                   <div className="hidden sm:flex flex-col gap-2">
                     <div className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all duration-200 border-primary bg-background shadow-sm ring-4 ring-primary/10">
                       <input
@@ -689,11 +706,17 @@ export function DictationPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={handleShowAnswer}
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
+                        onClick={handleRevealWord}
+                        disabled={currentWordIdx >= words.length}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        Show answer
+                        Show word
+                        {hintsUsed > 0 && (
+                          <span className="ml-0.5 text-[10px] bg-muted px-1 rounded">
+                            {hintsUsed}/{words.length}
+                          </span>
+                        )}
                       </button>
                       <div className="flex-1" />
                       <button
@@ -709,16 +732,14 @@ export function DictationPage() {
                 {/* Completed feedback */}
                 {phase === 'completed' && latestResult && (
                   <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div
-                      className={cn(
-                        'flex items-center justify-between px-4 py-3 rounded-xl border',
-                        latestResult.score >= 80
-                          ? 'bg-green-50 border-green-200'
-                          : latestResult.score >= 50
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-red-50 border-red-200',
-                      )}
-                    >
+
+                    {/* Score banner */}
+                    <div className={cn(
+                      'flex items-center justify-between px-4 py-3 rounded-xl border',
+                      latestResult.score >= 80 ? 'bg-green-50 border-green-200' :
+                      latestResult.score >= 50 ? 'bg-yellow-50 border-yellow-200' :
+                      'bg-red-50 border-red-200',
+                    )}>
                       <div className="flex items-center gap-2">
                         {latestResult.score >= 80 ? (
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -736,7 +757,7 @@ export function DictationPage() {
                         </span>
                         {latestResult.wrongAttempts > 0 && (
                           <span className="text-xs text-muted-foreground">
-                            ({latestResult.wrongAttempts} wrong {latestResult.wrongAttempts === 1 ? 'attempt' : 'attempts'})
+                            ({latestResult.wrongAttempts} {latestResult.wrongAttempts === 1 ? 'mistake' : 'mistakes'})
                           </span>
                         )}
                       </div>
@@ -749,20 +770,102 @@ export function DictationPage() {
                       </span>
                     </div>
 
-                    <div className="bg-muted/40 rounded-xl px-4 py-3 border border-border">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-                        Full sentence
+                    {/* Full sentence reveal */}
+                    <div className="bg-green-50/70 border border-green-200 rounded-xl px-4 py-4">
+                      <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">
+                        Full Sentence
                       </p>
-                      <p className="text-sm leading-relaxed">{currentSentence?.text}</p>
+                      <p className="text-base leading-relaxed font-medium text-foreground">
+                        {currentSentence?.text}
+                      </p>
                     </div>
 
-                    <Button onClick={handleNext} className="w-full gap-2 rounded-xl h-11">
-                      {isLastSentence ? (
-                        <><Trophy className="h-4 w-4" /> See Final Results</>
-                      ) : (
-                        <>Next Sentence <ChevronRight className="h-4 w-4" /></>
+                    {/* Translation panel (shown only when field is present) */}
+                    {currentSentence?.translation && (
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <button
+                          onClick={() => setShowTranslation((v) => !v)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted/40 transition-colors"
+                        >
+                          <span className="flex items-center gap-2 text-muted-foreground">
+                            <Languages className="h-4 w-4" />
+                            Translation
+                          </span>
+                          <ChevronDown className={cn(
+                            'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                            showTranslation && 'rotate-180',
+                          )} />
+                        </button>
+                        {showTranslation && (
+                          <div className="px-4 py-3 bg-muted/20 border-t border-border">
+                            <p className="text-sm leading-relaxed text-muted-foreground italic">
+                              {currentSentence.translation}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Auto-Next toggle row */}
+                    <div className="flex items-center justify-between px-1">
+                      <button
+                        onClick={toggleAutoNext}
+                        className="flex items-center gap-2.5 group"
+                      >
+                        <span className={cn(
+                          'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200',
+                          autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
+                        )}>
+                          <span className={cn(
+                            'absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
+                            autoNext ? 'translate-x-5' : 'translate-x-1',
+                          )} />
+                        </span>
+                        <span className={cn(
+                          'text-sm font-medium transition-colors',
+                          autoNext ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                        )}>
+                          Auto Next Sentence
+                        </span>
+                      </button>
+                      {!autoNext && !isLastSentence && (
+                        <span className="text-xs text-muted-foreground">
+                          Press <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted text-[10px] font-mono">Tab</kbd> to advance
+                        </span>
                       )}
-                    </Button>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handlePlay}
+                        variant="outline"
+                        className="gap-1.5 rounded-xl h-11 px-4"
+                        title="Replay this sentence"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        <span className="hidden sm:inline text-sm">Replay</span>
+                      </Button>
+                      {!isLastSentence && (
+                        <Button
+                          onClick={handlePrev}
+                          disabled={currentIndex === 0}
+                          variant="outline"
+                          className="gap-1.5 rounded-xl h-11 px-4"
+                          title="Previous sentence"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button onClick={handleNext} className="flex-1 gap-2 rounded-xl h-11">
+                        {isLastSentence ? (
+                          <><Trophy className="h-4 w-4" /> See Final Results</>
+                        ) : (
+                          <>Next Sentence <ChevronRight className="h-4 w-4" /></>
+                        )}
+                      </Button>
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -792,16 +895,20 @@ export function DictationPage() {
               const result = results.find((r) => r.sentenceIndex === i);
               const isActive = i === currentIndex;
               const isDone = !!result;
+              const isLive = i === liveSegmentIdx && !isActive;
 
               return (
                 <div
                   key={seg.id}
                   data-active={isActive}
+                  data-live={isLive}
+                  onClick={() => !isActive && setCurrentIndex(i)}
                   className={cn(
                     'flex items-start gap-2.5 px-4 py-3 transition-colors',
                     isActive && 'bg-primary/5 border-l-2 border-l-primary',
-                    !isActive && 'hover:bg-muted/30',
-                    !isDone && !isActive && 'opacity-50',
+                    isLive && !isActive && 'bg-blue-50/50 dark:bg-blue-950/20',
+                    !isActive && 'cursor-pointer hover:bg-muted/30 hover:opacity-100',
+                    !isDone && !isActive && !isLive && 'opacity-50',
                   )}
                 >
                   <div className="shrink-0 mt-0.5">
@@ -816,6 +923,10 @@ export function DictationPage() {
                     ) : isActive ? (
                       <span className="h-4 w-4 flex items-center justify-center">
                         <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      </span>
+                    ) : isLive ? (
+                      <span className="h-4 w-4 flex items-center justify-center">
+                        <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
                       </span>
                     ) : (
                       <span className="h-4 w-4 flex items-center justify-center">
@@ -859,7 +970,7 @@ export function DictationPage() {
       </div>
 
       {/* ── Mobile sticky input ── */}
-      {(phase === 'practicing' || phase === 'playing') && (
+      {phase !== 'completed' && (
         <div className="sm:hidden fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3 z-20 shadow-lg">
           <div className="flex items-center gap-3 rounded-2xl border-2 border-primary px-4 py-3 bg-background ring-4 ring-primary/10">
             <input
@@ -874,9 +985,27 @@ export function DictationPage() {
               spellCheck={false}
               className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/40"
             />
+            {/* Mobile Auto-Next toggle */}
             <button
-              onClick={handleShowAnswer}
-              className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground"
+              onClick={toggleAutoNext}
+              title={autoNext ? 'Auto-Next On' : 'Auto-Next Off'}
+              className="shrink-0 p-1.5 rounded-lg transition-colors"
+            >
+              <span className={cn(
+                'relative inline-flex h-4 w-7 rounded-full transition-colors duration-200',
+                autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
+              )}>
+                <span className={cn(
+                  'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
+                  autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
+                )} />
+              </span>
+            </button>
+            <button
+              onClick={handleRevealWord}
+              disabled={currentWordIdx >= words.length}
+              className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
+              title="Reveal next word"
             >
               <Eye className="h-4 w-4" />
             </button>

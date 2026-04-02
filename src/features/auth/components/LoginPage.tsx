@@ -2,47 +2,29 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { authApi } from '@/shared/lib/api';
-import { useAuthStore } from '../hooks/useAuthStore';
+import { useLogin } from '../hooks/useAuth';
+import { extractApiError } from '@/shared/lib/httpClient';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
+  const loginMutation = useLogin();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) return;
     setError('');
-    setLoading(true);
-    try {
-      console.log('[Login] Attempting login for:', email.trim());
-      const tokens = await authApi.login(email.trim(), password);
-      console.log('[Login] Login success, token_type:', tokens.token_type);
-      try {
-        localStorage.setItem('access_token', tokens.access_token);
-        console.log('[Login] Token saved, fetching user profile...');
-        const user = await authApi.getMe();
-        console.log('[Login] getMe success, user id:', user.id);
-        login(user, tokens.access_token, tokens.refresh_token);
-        navigate('/library');
-      } catch (meErr: unknown) {
-        console.error('[Login] getMe failed:', meErr);
-        const detail = (meErr as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setError(detail ? String(detail) : 'Failed to load user profile. Please try again.');
-      }
-    } catch (err: unknown) {
-      console.error('[Login] Login failed:', err);
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
+    loginMutation.mutate(
+      { email: email.trim(), password },
+      {
+        onSuccess: () => navigate('/library'),
+        onError: (err) => setError(extractApiError(err, 'Invalid email or password')),
+      },
+    );
   };
 
   return (
@@ -79,9 +61,7 @@ export function LoginPage() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-sm font-medium">Password</label>
-            </div>
+            <label className="text-sm font-medium block mb-1.5">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -102,8 +82,8 @@ export function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full gap-2" disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          <Button type="submit" className="w-full gap-2" disabled={loginMutation.isPending}>
+            {loginMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Sign In
           </Button>
         </form>
