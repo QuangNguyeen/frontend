@@ -1,32 +1,39 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User } from '../../../shared/types';
+import type { UserResponse } from '../../../shared/types/api';
 
 interface AuthState {
-    user: User | null;
-    token: string | null;
-    isAuthenticated: boolean;
-    login: (user: User, token: string) => void;
-    logout: () => void;
+  user: UserResponse | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  isAuthenticated: boolean;
+  login: (user: UserResponse, accessToken: string, refreshToken: string) => void;
+  logout: () => void;
+  setUser: (user: UserResponse) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
-    persist(
-        (set) => ({
-            user: null,
-            token: null,
-            isAuthenticated: false,
+  persist(
+    (set) => ({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
 
-            login: (user, token) => {
-                localStorage.setItem('access_token', token);
-                set({ user, token, isAuthenticated: true });
-            },
+      login: (user, accessToken, refreshToken) => {
+        localStorage.setItem('access_token', accessToken);
+        localStorage.setItem('refresh_token', refreshToken);
+        set({ user, accessToken, refreshToken, isAuthenticated: true });
+      },
 
-            logout: () => {
-                localStorage.removeItem('access_token');
-                set({ user: null, token: null, isAuthenticated: false });
-            },
-        }),
-        { name: 'dictalearn-auth' },
-    ),
+      logout: () => {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+      },
+
+      setUser: (user) => set({ user }),
+    }),
+    { name: 'dictalearn-auth' },
+  ),
 );

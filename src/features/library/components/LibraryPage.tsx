@@ -1,6 +1,283 @@
-import { Button } from "@/components/ui/button"
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
+  Loader2, AlertCircle, RefreshCw,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { videosApi } from '@/shared/lib/api';
+import { cn } from '@/lib/utils';
+import type { VideoResponse } from '@/shared/types/api';
+
+const LEVELS = ['All', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+const LANGUAGES = ['All', 'en', 'ja'];
+const LANGUAGE_LABELS: Record<string, string> = { All: 'All Languages', en: 'English', ja: 'Japanese' };
+
+function formatDuration(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function LevelBadge({ level }: { level: string | null }) {
+  if (!level) return null;
+  const colors: Record<string, string> = {
+    A1: 'bg-green-100 text-green-700',
+    A2: 'bg-green-100 text-green-700',
+    B1: 'bg-blue-100 text-blue-700',
+    B2: 'bg-blue-100 text-blue-700',
+    C1: 'bg-purple-100 text-purple-700',
+    C2: 'bg-purple-100 text-purple-700',
+    Beginner: 'bg-green-100 text-green-700',
+    Intermediate: 'bg-blue-100 text-blue-700',
+    Advanced: 'bg-purple-100 text-purple-700',
+  };
+  return (
+    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', colors[level] ?? 'bg-muted text-muted-foreground')}>
+      {level}
+    </span>
+  );
+}
+
+function VideoCard({ video }: { video: VideoResponse }) {
+  const navigate = useNavigate();
+  return (
+    <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 hover:border-primary/20 flex flex-col">
+      <div className="relative aspect-video bg-muted overflow-hidden">
+        <img
+          src={video.thumbnail_url}
+          alt={video.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              `https://placehold.co/320x180/1a1a2e/white?text=${encodeURIComponent(video.channel)}`;
+          }}
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 rounded-full p-3 shadow-lg">
+            <Play className="h-5 w-5 text-primary fill-current" />
+          </div>
+        </div>
+        <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-1.5 py-0.5 rounded font-mono">
+          {formatDuration(video.duration)}
+        </div>
+        {video.is_curated && (
+          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+            <BookmarkCheck className="h-3 w-3" />
+            Curated
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="font-semibold text-sm leading-snug mb-1 line-clamp-2">{video.title}</h3>
+        <p className="text-xs text-muted-foreground mb-3">{video.channel}</p>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <LevelBadge level={video.level} />
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Globe className="h-3 w-3" />
+            {LANGUAGE_LABELS[video.language] ?? video.language}
+          </span>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {formatDuration(video.duration)}
+          </span>
+        </div>
+        <div className="mt-auto">
+          <Button className="w-full" size="sm" onClick={() => navigate(`/dictation/${video.id}`)}>
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+            Start Dictation
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LibraryPage() {
-    return <div>
-        <Button>Demo</Button>
-    </div>;
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [selectedLevel, setSelectedLevel] = useState('All');
+  const [selectedLang, setSelectedLang] = useState('All');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [importError, setImportError] = useState('');
+
+  const { data: videos = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ['videos', selectedLang, selectedLevel],
+    queryFn: () =>
+      videosApi.list({
+        language: selectedLang !== 'All' ? selectedLang : undefined,
+        level: selectedLevel !== 'All' ? selectedLevel : undefined,
+      }),
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (url: string) =>
+      videosApi.import({ youtube_url: url, language: selectedLang !== 'All' ? selectedLang : 'en' }),
+    onSuccess: () => {
+      setYoutubeUrl('');
+      setImportError('');
+      queryClient.invalidateQueries({ queryKey: ['videos'] });
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setImportError(typeof detail === 'string' ? detail : 'Failed to import video');
+    },
+  });
+
+  const filtered = videos.filter((v) => {
+    const q = search.toLowerCase();
+    return v.title.toLowerCase().includes(q) || v.channel.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="min-h-full">
+      {/* Sticky header */}
+      <div className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-10">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-xl font-semibold">Video Library</h1>
+              <p className="text-sm text-muted-foreground">
+                Choose a video to practice listening and transcription
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <BarChart2 className="h-4 w-4" />
+                {videos.length} videos
+              </span>
+              <Button variant="ghost" size="icon-sm" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Import URL */}
+          <div className="flex flex-col gap-2 mb-4 p-3 bg-muted/50 rounded-lg border border-dashed border-border">
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="url"
+                  placeholder="Paste a YouTube URL to add a new video..."
+                  value={youtubeUrl}
+                  onChange={(e) => { setYoutubeUrl(e.target.value); setImportError(''); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && youtubeUrl.trim()) {
+                      importMutation.mutate(youtubeUrl.trim());
+                    }
+                  }}
+                  className="w-full pl-9 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                />
+              </div>
+              <Button
+                size="sm"
+                disabled={!youtubeUrl.trim() || importMutation.isPending}
+                onClick={() => importMutation.mutate(youtubeUrl.trim())}
+                className="gap-1.5"
+              >
+                {importMutation.isPending ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Importing...</>
+                ) : (
+                  'Add Video'
+                )}
+              </Button>
+            </div>
+            {importError && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" />{importError}
+              </p>
+            )}
+            {importMutation.isSuccess && (
+              <p className="text-xs text-green-600">Video imported successfully!</p>
+            )}
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-48 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search videos..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <div className="flex gap-1.5 flex-wrap">
+              {LEVELS.map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setSelectedLevel(level)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
+                    selectedLevel === level
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-1.5">
+              {LANGUAGES.map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => setSelectedLang(lang)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
+                    selectedLang === lang
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {LANGUAGE_LABELS[lang]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="px-6 py-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Loading videos...</span>
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <AlertCircle className="h-8 w-8 text-destructive mb-3" />
+            <p className="font-medium text-sm mb-2">Failed to load videos</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Try again</Button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+              <Search className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="font-medium text-sm">No videos found</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              {videos.length === 0
+                ? 'Add your first video by pasting a YouTube URL above'
+                : 'Try adjusting your search or filters'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filtered.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

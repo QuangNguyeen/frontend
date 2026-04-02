@@ -9,27 +9,30 @@ import { DashboardPage } from '../features/dashboard/components/DashboardPage';
 import { HistoryPage } from '../features/dashboard/components/HistoryPage';
 import { VocabularyPage } from '../features/vocabulary/components/VocabularyPage';
 import { FlashCardPage } from '../features/vocabulary/components/FlashCardPage';
+import { AppLayout } from '../components/layout/AppLayout';
+import { ProtectedRoute } from '../components/layout/ProtectedRoute';
 
 export function AppRouter() {
     return (
         <Routes>
-            {/* Auth */}
+            {/* Public auth routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
-            {/* Main */}
-            <Route path="/library" element={<LibraryPage />} />
-            <Route path="/dictation/:videoId" element={<DictationPage />} />
-            <Route path="/quiz/:videoId" element={<QuizPage />} />
-            <Route path="/result/:sessionId" element={<ResultPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/history" element={<HistoryPage />} />
+            {/* Protected app routes — require authentication */}
+            <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                    <Route path="/library" element={<LibraryPage />} />
+                    <Route path="/dictation/:videoId" element={<DictationPage />} />
+                    <Route path="/quiz/:videoId" element={<QuizPage />} />
+                    <Route path="/result/:sessionId" element={<ResultPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/vocabulary" element={<VocabularyPage />} />
+                    <Route path="/vocabulary/review" element={<FlashCardPage />} />
+                </Route>
+            </Route>
 
-            {/* Vocabulary */}
-            <Route path="/vocabulary" element={<VocabularyPage />} />
-            <Route path="/vocabulary/review" element={<FlashCardPage />} />
-
-            {/* Default redirect */}
             <Route path="*" element={<Navigate to="/library" replace />} />
         </Routes>
     );
