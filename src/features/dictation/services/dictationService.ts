@@ -16,7 +16,12 @@ export const dictationService = {
       null,
       { params: { video_id: videoId } },
     );
-    return res.data;
+    const data = res.data;
+    // Backend returns session_id; normalize to id for frontend consistency
+    if (!data.id && (data as Record<string, unknown>).session_id) {
+      data.id = (data as Record<string, unknown>).session_id as string;
+    }
+    return data;
   },
 
   submitAnswer: async (
@@ -26,6 +31,15 @@ export const dictationService = {
     const res = await httpClient.post<SentenceResultResponse>(
       `/api/v1/dictation/sessions/${sessionId}/submit`,
       data,
+    );
+    return res.data;
+  },
+
+  completeSession: async (
+    sessionId: string,
+  ): Promise<{ status: string; score: number }> => {
+    const res = await httpClient.post<{ status: string; score: number }>(
+      `/api/v1/dictation/sessions/${sessionId}/complete`,
     );
     return res.data;
   },

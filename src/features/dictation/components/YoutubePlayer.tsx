@@ -40,6 +40,7 @@ export interface YoutubePlayerHandle {
   pause: () => void;
   seekTo: (seconds: number) => void;
   setRate: (rate: number) => void;
+  getCurrentTime: () => number;
 }
 
 interface YoutubePlayerProps {
@@ -111,14 +112,14 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
     const durationRef = useRef(0);
 
     // ── Persisted preferences (Zustand) ──────────────────────────────────────
-    const volume       = usePlayerPrefsStore((s) => s.volume);
-    const setVolume    = usePlayerPrefsStore((s) => s.setVolume);
-    const muted        = usePlayerPrefsStore((s) => s.muted);
-    const setMuted     = usePlayerPrefsStore((s) => s.setMuted);
-    const toggleMuted  = usePlayerPrefsStore((s) => s.toggleMuted);
-    const rate         = usePlayerPrefsStore((s) => s.rate);
+    const volume = usePlayerPrefsStore((s) => s.volume);
+    const setVolume = usePlayerPrefsStore((s) => s.setVolume);
+    const muted = usePlayerPrefsStore((s) => s.muted);
+    const setMuted = usePlayerPrefsStore((s) => s.setMuted);
+    const toggleMuted = usePlayerPrefsStore((s) => s.toggleMuted);
+    const rate = usePlayerPrefsStore((s) => s.rate);
     const setRateState = usePlayerPrefsStore((s) => s.setRate);
-    const audioOnly       = usePlayerPrefsStore((s) => s.audioOnly);
+    const audioOnly = usePlayerPrefsStore((s) => s.audioOnly);
     const toggleAudioOnly = usePlayerPrefsStore((s) => s.toggleAudioOnly);
 
     // ── Ephemeral player state (local) ────────────────────────────────────────
@@ -149,7 +150,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
 
     // ── Imperative handle ─────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
-      play()  { setPlaying(true); },
+      play() { setPlaying(true); },
       pause() { setPlaying(false); },
       seekTo(s: number) {
         if (innerRef.current) innerRef.current.currentTime = s;
@@ -199,9 +200,9 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
     const toggleFullscreen = useCallback(async () => {
       if (!containerRef.current) return;
       if (!document.fullscreenElement) {
-        await containerRef.current.requestFullscreen().catch(() => {});
+        await containerRef.current.requestFullscreen().catch(() => { });
       } else {
-        await document.exitFullscreen().catch(() => {});
+        await document.exitFullscreen().catch(() => { });
       }
     }, []);
 
@@ -261,8 +262,8 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
       };
       document.addEventListener('keydown', onKey);
       return () => document.removeEventListener('keydown', onKey);
-    // Zustand actions (toggleMuted, toggleAudioOnly, setMuted, setVolume) are stable references
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      // Zustand actions (toggleMuted, toggleAudioOnly, setMuted, setVolume) are stable references
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [onPlayChange, seekAbsolute, toggleFullscreen]);
 
     // ── Event handlers ────────────────────────────────────────────────────────
@@ -397,7 +398,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
               <img
                 src={thumbUrl}
                 onError={() => setThumbFailed(true)}
-                className="w-28 h-[72px] sm:w-36 sm:h-[90px] object-cover rounded-xl shadow-2xl border border-white/10"
+                className="w-48 h-[108px] sm:w-64 sm:h-[144px] object-cover rounded-xl shadow-2xl border border-white/10"
                 alt="Video thumbnail"
               />
               {/* Play indicator overlay on thumbnail */}
@@ -503,7 +504,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
               >
                 {playing
                   ? <Pause className="h-5 w-5 fill-white" />
-                  : <Play  className="h-5 w-5 fill-white" />}
+                  : <Play className="h-5 w-5 fill-white" />}
               </button>
 
               {/* Forward 5 s */}
@@ -567,7 +568,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
                 title={audioOnly ? 'Switch to Video  (A)' : 'Audio Only  (A)'}
               >
                 {audioOnly
-                  ? <><Video      className="h-3.5 w-3.5" /> Video</>
+                  ? <><Video className="h-3.5 w-3.5" /> Video</>
                   : <><Headphones className="h-3.5 w-3.5" /> Audio</>}
               </button>
 

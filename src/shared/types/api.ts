@@ -34,6 +34,8 @@ export interface VideoResponse {
   is_curated: boolean;
   is_active: boolean;
   thumbnail_url: string;
+  play_count: number;
+  best_score: number | null;
 }
 
 export interface TranscriptResponse {
@@ -79,11 +81,21 @@ export interface ImportVideoRequest {
 
 // ─── Dictation ────────────────────────────────────────────────────────────────
 
+export interface DictationSessionSentenceResult {
+  sentence_index: number;
+  score: number;
+  word_diff: WordDiffItem[];
+}
+
 export interface DictationSessionResponse {
   id: string;
-  video_id: string;
+  video_id?: string;
   user_id?: string;
   started_at?: string;
+  total_sentences?: number;
+  current_sentence_index?: number;
+  resumed?: boolean;
+  sentence_results?: DictationSessionSentenceResult[];
 }
 
 export interface SubmitAnswerRequest {
@@ -106,25 +118,75 @@ export interface SentenceResultResponse {
   correct_count: number;
   wrong_count: number;
   missing_count: number;
+  // Vocabulary saving context
+  original_text: string;
+  video_id: string;
+  audio_start_time: number;
+  word_difficulty: Record<string, number>; // word → 0.0 (easy) to 1.0 (hard)
+}
+
+// ─��─ History / Attempts ────────────────────────���─────────────────────────────
+
+export interface HistoryAttemptResponse {
+  attempt_id: string;
+  video_id: string;
+  status: string;
+  score: number | null;
+  progress_str: string; // e.g. "5/10"
+  video_title: string;
+  video_thumbnail: string;
+  error_summary: Record<string, unknown> | null;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface HistoryPaginatedResponse {
+  items: HistoryAttemptResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export interface DashboardStatsResponse {
   total_sessions: number;
+  total_sentences: number;
   total_time_minutes: number;
   average_accuracy: number;
   total_videos: number;
-  streak_days: number;
+  current_streak: number;
+  longest_streak: number;
+}
+
+export interface HeatmapDay {
+  date: string;
+  count: number;
+  level: number;
+}
+
+export interface AccuracyPoint {
+  date: string;
+  score: number;
+  accuracy: number;
+}
+
+export interface DashboardFullResponse {
+  stats: DashboardStatsResponse;
+  heatmap: HeatmapDay[];
+  accuracy_trend: AccuracyPoint[];
 }
 
 export interface HistoryEntryResponse {
   id: string;
   video_title: string;
+  video_thumbnail: string;
   type: string;
-  score: number;
-  duration_minutes: number;
-  completed_at: string;
+  status: string;
+  score: number | null;
+  progress_str: string;
+  completed_at: string | null;
+  updated_at: string;
 }
 
 // ─── Vocabulary ───────────────────────────────────────────────────────────────

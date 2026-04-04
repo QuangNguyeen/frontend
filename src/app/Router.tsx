@@ -6,7 +6,7 @@ import { DictationPage } from '../features/dictation/components/DictationPage';
 import { QuizPage } from '../features/quiz/components/QuizPage';
 import { ResultPage } from '../features/dictation/components/ResultPage';
 import { DashboardPage } from '../features/dashboard/components/DashboardPage';
-import { HistoryPage } from '../features/dashboard/components/HistoryPage';
+import { HistoryPage } from '../features/history/components/HistoryPage';
 import { VocabularyPage } from '../features/vocabulary/components/VocabularyPage';
 import { FlashCardPage } from '../features/vocabulary/components/FlashCardPage';
 import { AppLayout } from '../components/layout/AppLayout';

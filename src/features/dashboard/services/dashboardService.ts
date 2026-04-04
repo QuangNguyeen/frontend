@@ -1,13 +1,9 @@
 import { httpClient } from '@/shared/lib/httpClient';
-import type { DashboardStatsResponse, HistoryEntryResponse } from '@/shared/types/api';
+import type { DashboardFullResponse, HistoryEntryResponse } from '@/shared/types/api';
 
-/**
- * Dashboard service — stats and session history API calls.
- * Contains zero UI logic or state.
- */
 export const dashboardService = {
-  getStats: async (): Promise<DashboardStatsResponse> => {
-    const res = await httpClient.get<DashboardStatsResponse>('/api/v1/dashboard/stats');
+  getFull: async (): Promise<DashboardFullResponse> => {
+    const res = await httpClient.get<DashboardFullResponse>('/api/v1/dashboard/full');
     return res.data;
   },
 

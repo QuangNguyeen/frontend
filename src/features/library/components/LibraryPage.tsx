@@ -1,19 +1,37 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLibraryFiltersStore } from '../hooks/useLibraryFiltersStore';
-import { useVideos, useImportVideo } from '../hooks/useVideos';
+import { useVideos, useImportVideo, useDeleteVideo } from '../hooks/useVideos';
 import {
   Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
-  Loader2, AlertCircle, RefreshCw,
+  Loader2, AlertCircle, RefreshCw, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogCancel, AlertDialogAction,
+} from '@/components/ui/alert-dialog';
+import {
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+} from '@/components/ui/select';
 import { extractApiError } from '@/shared/lib/httpClient';
 import { cn } from '@/lib/utils';
 import type { VideoResponse } from '@/shared/types/api';
 
-const LEVELS = ['All', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-const LANGUAGES = ['All', 'en', 'ja'];
-const LANGUAGE_LABELS: Record<string, string> = { All: 'All Languages', en: 'English', ja: 'Japanese' };
+const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+const JLPT_LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
+const LANGUAGE_OPTIONS = [
+  { value: 'All', label: 'Languages'},
+  { value: 'en',  label: 'English'},
+  { value: 'ja',  label: 'Japanese'},
+] as const;
+const LANGUAGE_MAP = Object.fromEntries(LANGUAGE_OPTIONS.map((o) => [o.value, o])) as Record<string, (typeof LANGUAGE_OPTIONS)[number]>;
+
+function getLevelOptions(lang: string): string[] {
+  if (lang === 'ja') return JLPT_LEVELS;
+  return CEFR_LEVELS;
+}
 
 function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -23,6 +41,7 @@ function formatDuration(seconds: number) {
 
 function LevelBadge({ level }: { level: string | null }) {
   if (!level) return null;
+  const clean = level.replace('~', '');
   const colors: Record<string, string> = {
     A1: 'bg-green-100 text-green-700',
     A2: 'bg-green-100 text-green-700',
@@ -35,13 +54,13 @@ function LevelBadge({ level }: { level: string | null }) {
     Advanced: 'bg-purple-100 text-purple-700',
   };
   return (
-    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', colors[level] ?? 'bg-muted text-muted-foreground')}>
-      {level}
+    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', colors[clean] ?? 'bg-muted text-muted-foreground')}>
+      {clean}
     </span>
   );
 }
 
-function VideoCard({ video }: { video: VideoResponse }) {
+function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: string) => void }) {
   const navigate = useNavigate();
   return (
     <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 hover:border-primary/20 flex flex-col">
@@ -69,22 +88,64 @@ function VideoCard({ video }: { video: VideoResponse }) {
             Curated
           </div>
         )}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/60 hover:bg-destructive text-white rounded-full p-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to delete this video?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently remove
+                &ldquo;{video.title}&rdquo; from your library. Your past
+                dictation history for this video will be kept safe.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => onDelete(video.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="p-4 flex flex-col flex-1">
         <h3 className="font-semibold text-sm leading-snug mb-1 line-clamp-2">{video.title}</h3>
         <p className="text-xs text-muted-foreground mb-3">{video.channel}</p>
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <LevelBadge level={video.level} />
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <Globe className="h-3 w-3" />
-            {LANGUAGE_LABELS[video.language] ?? video.language}
+            {LANGUAGE_MAP[video.language]?.label ?? video.language}
           </span>
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {formatDuration(video.duration)}
           </span>
         </div>
+        {video.play_count > 0 && (
+          <div className="flex items-center gap-3 mb-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span>🎧</span> {video.play_count}x played
+            </span>
+            {video.best_score != null && (
+              <span className="flex items-center gap-1 text-amber-600 font-medium">
+                <span>🏆</span> Best: {Math.round(video.best_score)}%
+              </span>
+            )}
+          </div>
+        )}
+        {video.play_count === 0 && <div className="mb-4" />}
         <div className="mt-auto">
           <Button className="w-full" size="sm" onClick={() => navigate(`/dictation/${video.id}`)}>
             <Play className="h-3.5 w-3.5 mr-1.5" />
@@ -105,6 +166,8 @@ export function LibraryPage() {
   const setSelectedLang  = useLibraryFiltersStore((s) => s.setSelectedLang);
   const setSelectedLevel = useLibraryFiltersStore((s) => s.setSelectedLevel);
 
+  const levelOptions = getLevelOptions(selectedLang);
+
   // Ephemeral form state (local — cleared on unmount)
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [importError, setImportError] = useState('');
@@ -115,10 +178,11 @@ export function LibraryPage() {
   });
 
   const importMutation = useImportVideo();
+  const deleteMutation = useDeleteVideo();
 
   const handleImport = (url: string) => {
     importMutation.mutate(
-      { youtube_url: url, language: selectedLang !== 'All' ? selectedLang : 'en' },
+      { youtube_url: url },
       {
         onSuccess: () => { setYoutubeUrl(''); setImportError(''); },
         onError: (err) => setImportError(extractApiError(err, 'Failed to import video')),
@@ -207,7 +271,7 @@ export function LibraryPage() {
             </div>
 
             <div className="flex gap-1.5 flex-wrap">
-              {LEVELS.map((level) => (
+              {['All', ...levelOptions].map((level) => (
                 <button
                   key={level}
                   onClick={() => setSelectedLevel(level)}
@@ -223,22 +287,33 @@ export function LibraryPage() {
               ))}
             </div>
 
-            <div className="flex gap-1.5">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => setSelectedLang(lang)}
-                  className={cn(
-                    'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
-                    selectedLang === lang
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {LANGUAGE_LABELS[lang]}
-                </button>
-              ))}
-            </div>
+            <Select
+              value={selectedLang}
+              onValueChange={(val) => { setSelectedLang(val); setSelectedLevel('All'); }}
+            >
+              <SelectTrigger className="border-0 bg-white/50 dark:bg-white/5 backdrop-blur shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl px-4 h-9 text-sm font-medium text-foreground gap-2 focus:ring-1 focus:ring-primary/30 cursor-pointer">
+                <span className="flex items-center gap-2">
+                  <span className="text-base leading-none">{LANGUAGE_MAP[selectedLang]}</span>
+                  <SelectValue />
+                </span>
+              </SelectTrigger>
+              <SelectContent
+                className="rounded-2xl shadow-2xl border-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 duration-200 ease-out"
+              >
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={opt.value}
+                    className="rounded-xl px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-white/10 focus:bg-slate-100 dark:focus:bg-white/10"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="text-base leading-none">{opt}</span>
+                      <span>{opt.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
@@ -271,7 +346,7 @@ export function LibraryPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((video) => (
-              <VideoCard key={video.id} video={video} />
+              <VideoCard key={video.id} video={video} onDelete={(id) => deleteMutation.mutate(id)} />
             ))}
           </div>
         )}

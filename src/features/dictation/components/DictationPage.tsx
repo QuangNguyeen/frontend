@@ -9,11 +9,12 @@ import {
 import { YoutubePlayer } from './YoutubePlayer';
 import type { YoutubePlayerHandle } from './YoutubePlayer';
 import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
-import { useDictationSession, useSubmitAnswer } from '../hooks/useDictation';
+import { useDictationSession, useSubmitAnswer, useCompleteSession } from '../hooks/useDictation';
 import { useVideo, useVideoTranscripts } from '@/features/library/hooks/useVideos';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { TranscriptResponse } from '@/shared/types/api';
+import type { SentenceResultResponse, TranscriptResponse } from '@/shared/types/api';
+import { WordSavePanel } from './WordSavePanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,20 +131,14 @@ export function DictationPage() {
    */
   const autoPlayRef = useRef(false);
   /**
-   * True while the video is playing freely (user clicked the player's own play
-   * button, not "Play Sentence"). When true, currentIndex follows the video
-   * position and the guided auto-seek effect is suppressed.
-   */
-  const freePlayRef = useRef(false);
-  /**
    * Stable pointer to the latest handleNext. Used by the auto-advance effect
    * so the effect only depends on [phase] and never creates double-timeouts
    * due to handleNext reference churn.
    */
-  const handleNextRef = useRef<() => void>(() => {});
+  const handleNextRef = useRef<() => void>(() => { });
 
   // ── Persisted user preferences ─────────────────────────────────────────────
-  const autoNext       = usePlayerPrefsStore((s) => s.autoNext);
+  const autoNext = usePlayerPrefsStore((s) => s.autoNext);
   const toggleAutoNext = usePlayerPrefsStore((s) => s.toggleAutoNext);
   /** Ref mirror of autoNext — lets auto-advance effect read the latest value
    *  without being in its dependency array (avoids retriggering on toggle). */
@@ -151,14 +146,18 @@ export function DictationPage() {
   useEffect(() => { autoNextRef.current = autoNext; }, [autoNext]);
 
   // ── API state ──────────────────────────────────────────────────────────────
-  const sessionId = useDictationSession(videoId);
+  const { sessionId, sessionData } = useDictationSession(videoId);
   const [currentIndex, setCurrentIndex] = useState(0);
+  /** Whether we've already applied the resume index from sessionData */
+  const resumeAppliedRef = useRef(false);
   /**
    * Results are added IMMEDIATELY when a sentence is completed locally.
    * We do NOT wait for the server response before showing results or advancing.
    * The background mutation updates the score field once the server responds.
    */
   const [results, setResults] = useState<LocalResult[]>([]);
+  /** Server results keyed by sentence index — has word_difficulty for WordSavePanel. */
+  const [serverResults, setServerResults] = useState<Map<number, SentenceResultResponse>>(new Map());
 
   // ── Practice state ─────────────────────────────────────────────────────────
   const [words, setWords] = useState<WordState[]>([]);
@@ -180,6 +179,20 @@ export function DictationPage() {
 
   // ── Effects ────────────────────────────────────────────────────────────────
 
+  // Apply resume index from session data (runs once when session loads)
+  useEffect(() => {
+    if (
+      !sessionData?.resumed ||
+      resumeAppliedRef.current ||
+      sentences.length === 0
+    ) return;
+    const idx = sessionData.current_sentence_index ?? 0;
+    if (idx > 0 && idx < sentences.length) {
+      resumeAppliedRef.current = true;
+      setCurrentIndex(idx);
+    }
+  }, [sessionData, sentences]);
+
   // Reset all practice state when the active sentence changes
   useEffect(() => {
     const sentence = sentences[currentIndex];
@@ -198,12 +211,10 @@ export function DictationPage() {
 
   /**
    * Auto-play when the active sentence changes — only triggers if the user has
-   * already played at least once (autoPlayRef.current = true) and the video
-   * isn't already playing freely.
+   * already played at least once (autoPlayRef.current = true).
    */
   useEffect(() => {
     if (!autoPlayRef.current) return;
-    if (freePlayRef.current) return; // video is playing freely — don't seek back
     const sentence = sentences[currentIndex];
     if (!sentence || !playerHandle.current) return;
     const t = setTimeout(() => {
@@ -245,6 +256,7 @@ export function DictationPage() {
   // ── Background scoring mutation ────────────────────────────────────────────
   // Fire-and-forget scoring hook — session may not exist yet, that's fine.
   const submitMutation = useSubmitAnswer(sessionId);
+  const completeMutation = useCompleteSession(sessionId);
 
   // ── Sentence completion (local, immediate) ─────────────────────────────────
   /**
@@ -279,9 +291,16 @@ export function DictationPage() {
             if (!result) return;
             setResults((prev) =>
               prev.map((r) =>
-                r.sentenceIndex === capturedIndex ? { ...r, score: result.score } : r,
+                r.sentenceIndex === capturedIndex ? { ...r, score: Math.round(result.score * 100) } : r,
               ),
             );
+            setServerResults((prev) => new Map(prev).set(capturedIndex, {
+              ...result,
+              word_difficulty: result.word_difficulty ?? {},
+            }));
+          },
+          onError: (err) => {
+            console.error(`[Dictation] Failed to submit sentence ${capturedIndex}:`, err);
           },
         },
       );
@@ -294,7 +313,6 @@ export function DictationPage() {
   const handlePlay = useCallback(() => {
     if (!currentSentence || !playerHandle.current) return;
     autoPlayRef.current = true;
-    freePlayRef.current = false; // switch to guided play mode
     playerHandle.current.seekTo(currentSentence.start_time);
     playerHandle.current.play();
     setIsVideoPlaying(true);
@@ -310,16 +328,13 @@ export function DictationPage() {
         if (idx !== liveSegmentIdxRef.current) {
           liveSegmentIdxRef.current = idx;
           setLiveSegmentIdx(idx);
-          // During free play, keep the active sentence in sync with video
-          if (freePlayRef.current && idx >= 0) {
-            setCurrentIndex(idx);
-          }
         }
       }
-      // Stop playback at sentence boundary during guided play
-      if (phase === 'playing' && currentSentence && time >= currentSentence.end_time) {
+      // Always pause at the current sentence boundary
+      if (currentSentence && time >= currentSentence.end_time) {
         playerHandle.current?.pause();
-        setPhase('practicing');
+        setIsVideoPlaying(false);
+        if (phase === 'playing') setPhase('practicing');
       }
     },
     [phase, currentSentence, sentences],
@@ -329,15 +344,17 @@ export function DictationPage() {
     (playing: boolean) => {
       setIsVideoPlaying(playing);
       if (playing && phase !== 'playing') {
-        // Video started outside guided play — enter free-play mode
-        freePlayRef.current = true;
-      }
-      if (!playing) {
-        freePlayRef.current = false;
+        // Native play button pressed — force guided play for the current sentence
+        if (currentSentence && playerHandle.current) {
+          playerHandle.current.seekTo(currentSentence.start_time);
+          autoPlayRef.current = true;
+          setPhase('playing');
+          setPlayCount((c) => c + 1);
+        }
       }
       if (!playing && phase === 'playing') setPhase('practicing');
     },
-    [phase],
+    [phase, currentSentence],
   );
 
   /**
@@ -358,8 +375,8 @@ export function DictationPage() {
           i === currentWordIdx
             ? { ...w, status: 'correct' as WordStatus }
             : i === currentWordIdx + 1
-            ? { ...w, status: 'active' as WordStatus }
-            : w,
+              ? { ...w, status: 'active' as WordStatus }
+              : w,
         );
         setWords(updated);
         setInputValue('');
@@ -372,13 +389,17 @@ export function DictationPage() {
           completeSentence(assembled, hintsUsed, updated);
         }
       } else {
-        // Wrong answer — flash the active chip, clear input, increment attempts
+        // Wrong answer — flash the active chip, keep text, move caret to start
         setWords((prev) =>
           prev.map((w, i) => (i === currentWordIdx ? { ...w, wrongAttempts: w.wrongAttempts + 1 } : w)),
         );
         setFlashingIdx(currentWordIdx);
         setTimeout(() => setFlashingIdx(null), 600);
-        setInputValue('');
+        setInputValue(typed);
+        // Move caret to position 0 so the user can fix from the start
+        requestAnimationFrame(() => {
+          inputRef.current?.setSelectionRange(0, 0);
+        });
       }
     },
     [words, currentWordIdx, completeSentence, hintsUsed],
@@ -422,8 +443,8 @@ export function DictationPage() {
       i === currentWordIdx
         ? { ...w, status: 'correct' as WordStatus }
         : i === next
-        ? { ...w, status: 'active' as WordStatus }
-        : w,
+          ? { ...w, status: 'active' as WordStatus }
+          : w,
     );
     setWords(updated);
     setCurrentWordIdx(next);
@@ -446,6 +467,9 @@ export function DictationPage() {
   const handleNext = useCallback(() => {
     const next = currentIndex + 1;
     if (next >= totalSentences) {
+      // Explicitly mark session as completed (fire-and-forget safety net)
+      completeMutation.mutate();
+
       const totalScore =
         results.length > 0
           ? Math.round(results.reduce((s, r) => s + r.score, 0) / results.length)
@@ -466,7 +490,7 @@ export function DictationPage() {
       return;
     }
     setCurrentIndex(next);
-  }, [currentIndex, totalSentences, results, navigate, videoId, video]);
+  }, [currentIndex, totalSentences, results, navigate, videoId, video, completeMutation]);
 
   // Keep handleNextRef pointing at the latest handleNext without it being
   // a dep of the auto-advance effect (prevents double-trigger).
@@ -737,8 +761,8 @@ export function DictationPage() {
                     <div className={cn(
                       'flex items-center justify-between px-4 py-3 rounded-xl border',
                       latestResult.score >= 80 ? 'bg-green-50 border-green-200' :
-                      latestResult.score >= 50 ? 'bg-yellow-50 border-yellow-200' :
-                      'bg-red-50 border-red-200',
+                        latestResult.score >= 50 ? 'bg-yellow-50 border-yellow-200' :
+                          'bg-red-50 border-red-200',
                     )}>
                       <div className="flex items-center gap-2">
                         {latestResult.score >= 80 ? (
@@ -751,7 +775,7 @@ export function DictationPage() {
                         <span className={cn(
                           'text-sm font-semibold',
                           latestResult.score >= 80 ? 'text-green-800' :
-                          latestResult.score >= 50 ? 'text-yellow-800' : 'text-red-800',
+                            latestResult.score >= 50 ? 'text-yellow-800' : 'text-red-800',
                         )}>
                           {latestResult.score >= 80 ? 'Excellent!' : latestResult.score >= 50 ? 'Good effort!' : 'Keep practicing!'}
                         </span>
@@ -764,21 +788,24 @@ export function DictationPage() {
                       <span className={cn(
                         'text-lg font-bold tabular-nums',
                         latestResult.score >= 80 ? 'text-green-700' :
-                        latestResult.score >= 50 ? 'text-yellow-700' : 'text-red-600',
+                          latestResult.score >= 50 ? 'text-yellow-700' : 'text-red-600',
                       )}>
                         {Math.round(latestResult.score)}%
                       </span>
                     </div>
 
-                    {/* Full sentence reveal */}
-                    <div className="bg-green-50/70 border border-green-200 rounded-xl px-4 py-4">
-                      <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">
-                        Full Sentence
-                      </p>
-                      <p className="text-base leading-relaxed font-medium text-foreground">
-                        {currentSentence?.text}
-                      </p>
-                    </div>
+                    {/* Word save panel (also serves as the answer reveal) */}
+                    {currentSentence && videoId && (() => {
+                      const sr = serverResults.get(currentIndex);
+                      return (
+                        <WordSavePanel
+                          text={sr?.original_text ?? currentSentence.text}
+                          videoId={sr?.video_id ?? videoId}
+                          audioStartTime={sr?.audio_start_time ?? currentSentence.start_time}
+                          wordDifficulty={sr?.word_difficulty ?? {}}
+                        />
+                      );
+                    })()}
 
                     {/* Translation panel (shown only when field is present) */}
                     {currentSentence?.translation && (
@@ -806,65 +833,14 @@ export function DictationPage() {
                       </div>
                     )}
 
-                    {/* Auto-Next toggle row */}
-                    <div className="flex items-center justify-between px-1">
-                      <button
-                        onClick={toggleAutoNext}
-                        className="flex items-center gap-2.5 group"
-                      >
-                        <span className={cn(
-                          'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200',
-                          autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
-                        )}>
-                          <span className={cn(
-                            'absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
-                            autoNext ? 'translate-x-5' : 'translate-x-1',
-                          )} />
-                        </span>
-                        <span className={cn(
-                          'text-sm font-medium transition-colors',
-                          autoNext ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
-                        )}>
-                          Auto Next Sentence
-                        </span>
-                      </button>
-                      {!autoNext && !isLastSentence && (
-                        <span className="text-xs text-muted-foreground">
-                          Press <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted text-[10px] font-mono">Tab</kbd> to advance
-                        </span>
+                    {/* Action button — single full-width Next */}
+                    <Button onClick={handleNext} className="w-full gap-2 rounded-xl h-11">
+                      {isLastSentence ? (
+                        <><Trophy className="h-4 w-4" /> See Final Results</>
+                      ) : (
+                        <>Next Sentence <ChevronRight className="h-4 w-4" /></>
                       )}
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handlePlay}
-                        variant="outline"
-                        className="gap-1.5 rounded-xl h-11 px-4"
-                        title="Replay this sentence"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        <span className="hidden sm:inline text-sm">Replay</span>
-                      </Button>
-                      {!isLastSentence && (
-                        <Button
-                          onClick={handlePrev}
-                          disabled={currentIndex === 0}
-                          variant="outline"
-                          className="gap-1.5 rounded-xl h-11 px-4"
-                          title="Previous sentence"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button onClick={handleNext} className="flex-1 gap-2 rounded-xl h-11">
-                        {isLastSentence ? (
-                          <><Trophy className="h-4 w-4" /> See Final Results</>
-                        ) : (
-                          <>Next Sentence <ChevronRight className="h-4 w-4" /></>
-                        )}
-                      </Button>
-                    </div>
+                    </Button>
 
                   </div>
                 )}
@@ -946,8 +922,8 @@ export function DictationPage() {
                         <span className={cn(
                           'text-xs font-bold px-1.5 py-0.5 rounded-full leading-none',
                           result!.score >= 80 ? 'bg-green-100 text-green-700' :
-                          result!.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700',
+                            result!.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700',
                         )}>
                           {Math.round(result!.score)}%
                         </span>
