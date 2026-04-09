@@ -13,47 +13,22 @@ import { useDictationSession, useSubmitAnswer, useCompleteSession } from '../hoo
 import { useVideo, useVideoTranscripts } from '@/features/library/hooks/useVideos';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { SentenceResultResponse, TranscriptResponse } from '@/shared/types/api';
+import type { SentenceResultResponse, TranscriptResponse, WordDiffItem } from '@/shared/types/api';
 import { WordSavePanel } from './WordSavePanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type WordStatus = 'hidden' | 'active' | 'correct';
 type Phase = 'idle' | 'playing' | 'practicing' | 'completed';
-
-interface WordState {
-  original: string;
-  normalized: string;
-  status: WordStatus;
-  wrongAttempts: number;
-}
 
 interface LocalResult {
   sentenceIndex: number;
-  /** Provisional 100 until server responds with real score */
+  /** Provisional 0 until server responds with real score */
   score: number;
-  wrongAttempts: number;
+  userInput: string;
   correctText: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function normalizeWord(w: string): string {
-  return w.toLowerCase().replace(/[^a-z0-9']/g, '');
-}
-
-function buildWordStates(sentence: TranscriptResponse): WordState[] {
-  return sentence.text
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w, i) => ({
-      original: w,
-      normalized: normalizeWord(w),
-      // First word is immediately active so user can start typing
-      status: (i === 0 ? 'active' : 'hidden') as WordStatus,
-      wrongAttempts: 0,
-    }));
-}
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -76,40 +51,47 @@ function findSegmentByTime(segs: TranscriptResponse[], time: number): number {
   return -1;
 }
 
-// ─── Word Chip ────────────────────────────────────────────────────────────────
+// ─── Caret-focus helper ───────────────────────────────────────────────────────
 
-function WordChip({ word, isFlashing }: { word: WordState; isFlashing: boolean }) {
-  const len = word.original.replace(/[^a-zA-Z0-9]/g, '').length;
-  const dots = '●'.repeat(Math.max(3, len));
+/**
+ * Given the user's typed string and the server's word_diffs array, return
+ * the character offset in the user string just after their FIRST mistake
+ * word. Used to re-focus the textarea so the caret sits exactly where the
+ * user needs to fix their input.
+ *
+ * Mapping rules (consistent with the backend SequenceMatcher opcodes):
+ *   - 'correct' / 'wrong' / 'extra' each consume one user word.
+ *   - 'missing' consumes zero user words (it's a gap in the user string).
+ *
+ * If the first error is 'missing', the caret lands at the end of the last
+ * correctly-typed word before the gap — the natural spot to start typing
+ * the forgotten word.
+ */
+function computeErrorCaretOffset(userText: string, diffs: WordDiffItem[]): number {
+  const firstErrIdx = diffs.findIndex((d) => d.status !== 'correct');
+  if (firstErrIdx === -1) return userText.length;
 
-  if (word.status === 'correct') {
-    return (
-      <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-green-100 text-green-700 font-medium text-sm border border-green-200 animate-in fade-in zoom-in-90 duration-300">
-        {word.original}
-      </span>
-    );
+  let userWordsConsumed = 0;
+  for (let i = 0; i <= firstErrIdx; i++) {
+    const s = diffs[i].status;
+    if (s === 'correct' || s === 'wrong' || s === 'extra') {
+      userWordsConsumed++;
+    }
+    // 'missing' doesn't consume a user word — caret lands after the previous one.
   }
 
-  if (word.status === 'active') {
-    return (
-      <span
-        className={cn(
-          'inline-flex items-center px-3 py-1.5 rounded-xl font-medium text-sm border-2 transition-all duration-150',
-          isFlashing
-            ? 'bg-red-50 border-red-400 text-red-400'
-            : 'bg-primary/5 border-primary ring-4 ring-primary/10 text-primary',
-        )}
-      >
-        <span className="tracking-widest text-xs opacity-50">{dots}</span>
-      </span>
-    );
-  }
+  if (userWordsConsumed === 0) return 0;
 
-  return (
-    <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-muted border border-border text-muted-foreground/30 text-sm">
-      <span className="tracking-widest text-xs">{dots}</span>
-    </span>
-  );
+  const re = /\S+/g;
+  let match: RegExpExecArray | null;
+  let count = 0;
+  while ((match = re.exec(userText)) !== null) {
+    count++;
+    if (count === userWordsConsumed) {
+      return match.index + match[0].length;
+    }
+  }
+  return userText.length;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -119,7 +101,7 @@ export function DictationPage() {
   const navigate = useNavigate();
 
   const playerHandle = useRef<YoutubePlayerHandle>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const segmentListRef = useRef<HTMLDivElement>(null);
   /** Ref mirror of liveSegmentIdx — avoids stale closure in handleTimeUpdate. */
   const liveSegmentIdxRef = useRef(-1);
@@ -156,15 +138,18 @@ export function DictationPage() {
    * The background mutation updates the score field once the server responds.
    */
   const [results, setResults] = useState<LocalResult[]>([]);
-  /** Server results keyed by sentence index — has word_difficulty for WordSavePanel. */
+  /** Server results keyed by sentence index — has word_diffs + word_difficulty. */
   const [serverResults, setServerResults] = useState<Map<number, SentenceResultResponse>>(new Map());
 
   // ── Practice state ─────────────────────────────────────────────────────────
-  const [words, setWords] = useState<WordState[]>([]);
-  const [currentWordIdx, setCurrentWordIdx] = useState(0);
+  /** Freeform text the user has typed for the current sentence. */
   const [inputValue, setInputValue] = useState('');
-  const [flashingIdx, setFlashingIdx] = useState<number | null>(null);
+  /** Incremented each time the user clicks "Show Hint" — passed to the backend. */
   const [hintsUsed, setHintsUsed] = useState(0);
+  /** When true, the full transcript is revealed inline as a hint. */
+  const [showHint, setShowHint] = useState(false);
+  /** True while a submit request is in-flight to the backend. */
+  const [isVerifying, setIsVerifying] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -189,7 +174,9 @@ export function DictationPage() {
     const idx = sessionData.current_sentence_index ?? 0;
     if (idx > 0 && idx < sentences.length) {
       resumeAppliedRef.current = true;
+      /* eslint-disable react-hooks/set-state-in-effect */
       setCurrentIndex(idx);
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [sessionData, sentences]);
 
@@ -198,14 +185,13 @@ export function DictationPage() {
     const sentence = sentences[currentIndex];
     if (!sentence) return;
     /* eslint-disable react-hooks/set-state-in-effect */
-    setWords(buildWordStates(sentence));
-    setCurrentWordIdx(0);
     setInputValue('');
     setPhase('practicing');
     setPlayCount(0);
     setHintsUsed(0);
+    setShowHint(false);
     setShowTranslation(false);
-    setFlashingIdx(null);
+    setIsVerifying(false);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [currentIndex, sentences]);
 
@@ -246,66 +232,79 @@ export function DictationPage() {
 
   const currentSentence = sentences[currentIndex];
   const totalSentences = sentences.length;
-  const completedWords = words.filter((w) => w.status === 'correct').length;
-  const totalWords = words.length;
-  const wordProgress = totalWords > 0 ? (completedWords / totalWords) * 100 : 0;
   const sentenceProgress = totalSentences > 0 ? (currentIndex / totalSentences) * 100 : 0;
   const isLastSentence = currentIndex === totalSentences - 1;
   const latestResult = results.find((r) => r.sentenceIndex === currentIndex);
+  /** Server scoring result for the current sentence — drives the diff panel. */
+  const latestDiffCheck = serverResults.get(currentIndex) ?? null;
 
   // ── Background scoring mutation ────────────────────────────────────────────
   // Fire-and-forget scoring hook — session may not exist yet, that's fine.
   const submitMutation = useSubmitAnswer(sessionId);
   const completeMutation = useCompleteSession(sessionId);
 
-  // ── Sentence completion (local, immediate) ─────────────────────────────────
+  // ── Sentence verification / completion ────────────────────────────────────
   /**
-   * completeSentence is the single source of truth for finishing a sentence.
-   * Updates results and phase IMMEDIATELY without waiting for the server,
-   * then fires the scoring mutation in the background.
+   * validateSentence hits the backend for scoring + diffing. It does NOT
+   * transition phase — that's finalizeSentence's job. Safe to call multiple
+   * times for the same sentence index (backend upserts per-sentence state).
+   * Resolves with the server result so callers can branch on score.
    */
-  const completeSentence = useCallback(
-    (userInput: string, hintsUsed: number, currentWords: WordState[]) => {
-      const totalWrong = currentWords.reduce((acc, w) => acc + w.wrongAttempts, 0);
+  const validateSentence = useCallback(
+    (userInput: string, hintsUsedCount: number): Promise<SentenceResultResponse | null> => {
+      const capturedIndex = currentIndex;
+      return new Promise((resolve) => {
+        setIsVerifying(true);
+        submitMutation.mutate(
+          {
+            sentence_index: capturedIndex,
+            user_input: userInput,
+            hints_used: hintsUsedCount,
+            replay_count: Math.max(0, playCount - 1),
+          },
+          {
+            onSuccess: (result) => {
+              setIsVerifying(false);
+              if (!result) { resolve(null); return; }
+              setServerResults((prev) =>
+                new Map(prev).set(capturedIndex, {
+                  ...result,
+                  word_difficulty: result.word_difficulty ?? {},
+                }),
+              );
+              resolve(result);
+            },
+            onError: (err) => {
+              setIsVerifying(false);
+              console.error(`[Dictation] Failed to verify sentence ${capturedIndex}:`, err);
+              resolve(null);
+            },
+          },
+        );
+      });
+    },
+    [currentIndex, playCount, submitMutation],
+  );
+
+  /**
+   * finalizeSentence locks in the score and flips phase → 'completed'.
+   * Only called on perfect score (1.0) or when the user explicitly skips.
+   */
+  const finalizeSentence = useCallback(
+    (userInput: string, score: number) => {
       const capturedIndex = currentIndex;
       setResults((prev) => [
         ...prev.filter((r) => r.sentenceIndex !== capturedIndex),
         {
           sentenceIndex: capturedIndex,
-          score: 100,
-          wrongAttempts: totalWrong,
+          score,
+          userInput,
           correctText: currentSentence?.text ?? '',
         },
       ]);
       setPhase('completed');
-      // Submit for real score in background — update score on success
-      submitMutation.mutate(
-        {
-          sentence_index: capturedIndex,
-          user_input: userInput,
-          hints_used: hintsUsed,
-          replay_count: Math.max(0, playCount - 1),
-        },
-        {
-          onSuccess: (result) => {
-            if (!result) return;
-            setResults((prev) =>
-              prev.map((r) =>
-                r.sentenceIndex === capturedIndex ? { ...r, score: Math.round(result.score * 100) } : r,
-              ),
-            );
-            setServerResults((prev) => new Map(prev).set(capturedIndex, {
-              ...result,
-              word_difficulty: result.word_difficulty ?? {},
-            }));
-          },
-          onError: (err) => {
-            console.error(`[Dictation] Failed to submit sentence ${capturedIndex}:`, err);
-          },
-        },
-      );
     },
-    [currentIndex, currentSentence, playCount, submitMutation],
+    [currentIndex, currentSentence],
   );
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -358,107 +357,72 @@ export function DictationPage() {
   );
 
   /**
-   * Validates one typed word against the expected word at currentWordIdx.
-   * On correct: reveal chip, advance index, call completeSentence if last word.
-   * On wrong: flash the chip, clear input, stay on same word.
-   *
-   * FIX: calls completeSentence directly — no longer waits for mutation.
+   * Submit the typed sentence for verification.
+   * - On perfect score (1.0) → finalize and advance.
+   * - On partial score → stay in practicing, the unified diff panel appears
+   *   above the textarea, the user's text is preserved, and the caret jumps
+   *   to the end of the first mistake word so they can fix it in place.
    */
-  const validateWord = useCallback(
-    (typed: string) => {
-      if (currentWordIdx >= words.length) return;
-      const target = words[currentWordIdx];
-
-      if (normalizeWord(typed) === target.normalized) {
-        // Mark word correct, activate the next one
-        const updated = words.map((w, i) =>
-          i === currentWordIdx
-            ? { ...w, status: 'correct' as WordStatus }
-            : i === currentWordIdx + 1
-              ? { ...w, status: 'active' as WordStatus }
-              : w,
-        );
-        setWords(updated);
-        setInputValue('');
-        const next = currentWordIdx + 1;
-        setCurrentWordIdx(next);
-
-        if (next >= words.length) {
-          // All words correct — complete immediately, don't wait for server
-          const assembled = updated.map((w) => w.original).join(' ');
-          completeSentence(assembled, hintsUsed, updated);
-        }
-      } else {
-        // Wrong answer — flash the active chip, keep text, move caret to start
-        setWords((prev) =>
-          prev.map((w, i) => (i === currentWordIdx ? { ...w, wrongAttempts: w.wrongAttempts + 1 } : w)),
-        );
-        setFlashingIdx(currentWordIdx);
-        setTimeout(() => setFlashingIdx(null), 600);
-        setInputValue(typed);
-        // Move caret to position 0 so the user can fix from the start
-        requestAnimationFrame(() => {
-          inputRef.current?.setSelectionRange(0, 0);
-        });
+  const handleSubmit = useCallback(async () => {
+    if (phase === 'completed' || isVerifying) return;
+    const typed = inputValue.trim();
+    if (!typed) return;
+    const result = await validateSentence(typed, hintsUsed);
+    if (!result) return;
+    const isPerfectText = result.word_diffs.every((d) => d.status === 'correct');
+    if (isPerfectText) {
+      finalizeSentence(typed, Math.round(result.score * 100));
+      return;
+    }
+    // Partial: jump caret to the end of the first mistake word in the raw
+    // input (we use inputValue, not typed, so leading whitespace offsets line up).
+    const offset = computeErrorCaretOffset(inputValue, result.word_diffs);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.setSelectionRange(offset, offset);
+      } catch {
+        /* some browsers throw on out-of-range — best-effort */
       }
-    },
-    [words, currentWordIdx, completeSentence, hintsUsed],
-  );
-
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value;
-      // Space acts as a submit trigger (same as Enter)
-      if (val.endsWith(' ')) {
-        const typed = val.trim();
-        if (typed) validateWord(typed);
-        else setInputValue('');
-        return;
-      }
-      setInputValue(val);
-    },
-    [validateWord],
-  );
+    });
+  }, [inputValue, hintsUsed, validateSentence, finalizeSentence, phase, isVerifying]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Enter submits; Shift+Enter inserts a newline (textarea default).
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        const typed = inputValue.trim();
-        if (typed) validateWord(typed);
+        handleSubmit();
+        return;
       }
       if (e.key === 'Tab') {
         e.preventDefault();
-        handleNextRef.current(); // advance via stable ref — no extra dep needed
+        handleNextRef.current();
       }
     },
-    [inputValue, validateWord],
+    [handleSubmit],
   );
 
-  /** Reveals the current active word, then moves to the next — one word per click. */
-  const handleRevealWord = useCallback(() => {
-    if (currentWordIdx >= words.length) return;
-    const next = currentWordIdx + 1;
-    const updated = words.map((w, i) =>
-      i === currentWordIdx
-        ? { ...w, status: 'correct' as WordStatus }
-        : i === next
-          ? { ...w, status: 'active' as WordStatus }
-          : w,
-    );
-    setWords(updated);
-    setCurrentWordIdx(next);
-    setInputValue('');
+  /** Reveals the full transcript as a hint. Counts as one hint use. */
+  const handleRevealHint = useCallback(() => {
+    if (showHint) return;
+    setShowHint(true);
     setHintsUsed((h) => h + 1);
-    if (next >= words.length) {
-      const assembled = updated.map((w) => w.original).join(' ');
-      completeSentence(assembled, hintsUsed + 1, updated);
-    }
-  }, [words, currentWordIdx, completeSentence, hintsUsed]);
+  }, [showHint]);
 
-  const handleSkip = useCallback(() => {
-    completeSentence('', 0, words);
-  }, [completeSentence, words]);
+  /**
+   * Force-move past this sentence. Submits whatever the user has typed so the
+   * attempt is recorded, then finalizes with the server score (0 on empty).
+   */
+  const handleSkip = useCallback(async () => {
+    if (isVerifying) return;
+    const typed = inputValue.trim();
+    const result = await validateSentence(typed, hintsUsed);
+    const score = result ? Math.round(result.score * 100) : 0;
+    finalizeSentence(typed, score);
+  }, [inputValue, hintsUsed, validateSentence, finalizeSentence, isVerifying]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
@@ -479,10 +443,10 @@ export function DictationPage() {
           video,
           results: results.map((r) => ({
             sentenceIndex: r.sentenceIndex,
-            userInput: r.correctText,
+            userInput: r.userInput,
             correctText: r.correctText,
             score: r.score,
-            wordDiffs: [],
+            wordDiffs: serverResults.get(r.sentenceIndex)?.word_diffs ?? [],
           })),
           totalScore,
         },
@@ -490,8 +454,13 @@ export function DictationPage() {
       return;
     }
     setCurrentIndex(next);
-  }, [currentIndex, totalSentences, results, navigate, videoId, video, completeMutation]);
-
+  }, [currentIndex, totalSentences, results, serverResults, navigate, videoId, video, completeMutation]);
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    if(showHint){
+      setShowHint(false);
+    }
+  }
   // Keep handleNextRef pointing at the latest handleNext without it being
   // a dep of the auto-advance effect (prevents double-trigger).
   useEffect(() => {
@@ -567,30 +536,6 @@ export function DictationPage() {
             <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium">
               {currentIndex + 1} / {totalSentences}
             </span>
-
-            {/* Auto-Next toggle */}
-            <button
-              onClick={toggleAutoNext}
-              title={autoNext ? 'Auto-Next: On — click to disable' : 'Auto-Next: Off — click to enable'}
-              className={cn(
-                'hidden sm:flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors',
-                autoNext
-                  ? 'border-primary/40 bg-primary/5 text-primary'
-                  : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
-              )}
-            >
-              <span>Auto Next</span>
-              {/* Toggle pill */}
-              <span className={cn(
-                'relative inline-flex h-4 w-7 rounded-full transition-colors duration-200',
-                autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
-              )}>
-                <span className={cn(
-                  'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
-                  autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
-                )} />
-              </span>
-            </button>
           </div>
         </div>
         {/* Overall sentence progress bar */}
@@ -648,6 +593,28 @@ export function DictationPage() {
                   )}
                 </button>
               )}
+              <button
+                  onClick={toggleAutoNext}
+                  title={autoNext ? 'Auto-Next: On — click to disable' : 'Auto-Next: Off — click to enable'}
+                  className={cn(
+                      'hidden sm:flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg border transition-colors',
+                      autoNext
+                          ? 'border-primary/40 bg-primary/5 text-primary'
+                          : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
+                  )}
+              >
+                <span>Auto Next</span>
+                {/* Toggle pill */}
+                <span className={cn(
+                    'relative inline-flex h-5 w-9 rounded-full transition-colors duration-200',
+                    autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
+                )}>
+                <span className={cn(
+                    'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
+                    autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
+                )} />
+              </span>
+              </button>
             </div>
 
             {/* Sentence practice card */}
@@ -662,19 +629,6 @@ export function DictationPage() {
                   <span className="text-sm font-semibold">Sentence {currentIndex + 1}</span>
                   <span className="text-xs text-muted-foreground">of {totalSentences}</span>
                 </div>
-                {totalWords > 0 && (
-                  <div className="flex items-center gap-2 flex-1 justify-center">
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {completedWords}/{totalWords} words
-                    </span>
-                    <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all duration-300"
-                        style={{ width: `${wordProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
                     onClick={handlePrev}
@@ -696,59 +650,114 @@ export function DictationPage() {
 
               <div className="p-5 flex flex-col gap-5">
 
-                {/* Word chips */}
-                {words.length > 0 && (
-                  <div className="flex flex-wrap gap-2 min-h-10">
-                    {words.map((word, i) => (
-                      <WordChip key={i} word={word} isFlashing={flashingIdx === i} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Input area (desktop) */}
+                {/* Freeform typing area (desktop) */}
                 {phase !== 'completed' && (
-                  <div className="hidden sm:flex flex-col gap-2">
-                    <div className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all duration-200 border-primary bg-background shadow-sm ring-4 ring-primary/10">
-                      <input
+                  <div className="hidden sm:flex flex-col gap-3">
+
+                    {/* Live feedback panel — shown after the first failed
+                        attempt. Unified WordSavePanel renders the expected
+                        sentence inline with colored highlights, progressive
+                        reveal masking, and clickable flashcard saves. */}
+                    {latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') && currentSentence && videoId && (
+                      <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 font-medium text-amber-700">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Not quite — fix the highlighted word and press Enter again
+                          </span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {Math.round(latestDiffCheck.score * 100)}% · {latestDiffCheck.correct_count}/
+                            {latestDiffCheck.word_diffs.filter((d) => d.status !== 'extra').length}
+                          </span>
+                        </div>
+                        <WordSavePanel
+                          text={latestDiffCheck.original_text ?? currentSentence.text}
+                          videoId={latestDiffCheck.video_id ?? videoId}
+                          audioStartTime={latestDiffCheck.audio_start_time ?? currentSentence.start_time}
+                          wordDifficulty={latestDiffCheck.word_difficulty ?? {}}
+                          diffs={latestDiffCheck.word_diffs}
+                        />
+                      </div>
+                    )}
+
+                    <div className={cn(
+                      'flex items-start gap-3 rounded-2xl border-2 px-4 py-3 transition-all duration-200 bg-background shadow-sm',
+                      isVerifying
+                        ? 'border-muted-foreground/30 ring-4 ring-muted/30'
+                        : 'border-primary ring-4 ring-primary/10',
+                    )}>
+                      <textarea
                         ref={inputRef}
-                        type="text"
                         value={inputValue}
                         onChange={handleInputChange}
                         onKeyDown={handleKeyDown}
-                        placeholder="Type the next word… (Space or Enter to confirm)"
+                        placeholder="Type what you hear…"
+                        rows={3}
                         autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck={false}
-                        className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/40"
+                        disabled={isVerifying}
+                        className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/40 resize-none leading-relaxed disabled:opacity-60"
                       />
-                      {inputValue && (
-                        <kbd className="shrink-0 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                      {inputValue && !isVerifying && (
+                        <kbd className="shrink-0 mt-1 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
                           ↵
                         </kbd>
                       )}
+                      {isVerifying && (
+                        <Loader2 className="shrink-0 mt-1 h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
                     </div>
+
+                    {/* Hint reveal — full transcript inline */}
+                    {showHint && currentSentence && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3">
+                        <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide mb-1">
+                          Hint
+                        </p>
+                        <p className="text-sm leading-relaxed text-amber-900">
+                          {currentSentence.text}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={handleRevealWord}
-                        disabled={currentWordIdx >= words.length}
+                        onClick={handleRevealHint}
+                        disabled={showHint}
                         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        Show word
+                        {showHint ? 'Hint shown' : 'Show Hint'}
                         {hintsUsed > 0 && (
                           <span className="ml-0.5 text-[10px] bg-muted px-1 rounded">
-                            {hintsUsed}/{words.length}
+                            {hintsUsed}
                           </span>
                         )}
                       </button>
                       <div className="flex-1" />
                       <button
                         onClick={handleSkip}
-                        className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
+                        disabled={isVerifying}
+                        className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
                       >
                         Skip sentence
                       </button>
+                      <Button
+                        size="sm"
+                        onClick={handleSubmit}
+                        disabled={!inputValue.trim() || isVerifying}
+                        className="gap-1.5 rounded-xl min-w-24"
+                      >
+                        {isVerifying ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…</>
+                        ) : latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') ? (
+                          'Retry'
+                        ) : (
+                          'Submit'
+                        )}
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -777,11 +786,13 @@ export function DictationPage() {
                           latestResult.score >= 80 ? 'text-green-800' :
                             latestResult.score >= 50 ? 'text-yellow-800' : 'text-red-800',
                         )}>
-                          {latestResult.score >= 80 ? 'Excellent!' : latestResult.score >= 50 ? 'Good effort!' : 'Keep practicing!'}
+                          {latestResult.score >= 80 ? 'Excellent!'
+                            : latestResult.score >= 50 ? 'Good effort!'
+                              : 'Keep practicing!'}
                         </span>
-                        {latestResult.wrongAttempts > 0 && (
+                        {latestDiffCheck && latestDiffCheck.wrong_count + latestDiffCheck.missing_count > 0 && (
                           <span className="text-xs text-muted-foreground">
-                            ({latestResult.wrongAttempts} {latestResult.wrongAttempts === 1 ? 'mistake' : 'mistakes'})
+                            ({latestDiffCheck.wrong_count + latestDiffCheck.missing_count} {latestDiffCheck.wrong_count + latestDiffCheck.missing_count === 1 ? 'mistake' : 'mistakes'})
                           </span>
                         )}
                       </div>
@@ -794,18 +805,17 @@ export function DictationPage() {
                       </span>
                     </div>
 
-                    {/* Word save panel (also serves as the answer reveal) */}
-                    {currentSentence && videoId && (() => {
-                      const sr = serverResults.get(currentIndex);
-                      return (
-                        <WordSavePanel
-                          text={sr?.original_text ?? currentSentence.text}
-                          videoId={sr?.video_id ?? videoId}
-                          audioStartTime={sr?.audio_start_time ?? currentSentence.start_time}
-                          wordDifficulty={sr?.word_difficulty ?? {}}
-                        />
-                      );
-                    })()}
+                    {/* Unified answer + flashcard panel — one inline paragraph
+                        with colored highlights, masking, and click-to-save. */}
+                    {currentSentence && videoId && (
+                      <WordSavePanel
+                        text={latestDiffCheck?.original_text ?? currentSentence.text}
+                        videoId={latestDiffCheck?.video_id ?? videoId}
+                        audioStartTime={latestDiffCheck?.audio_start_time ?? currentSentence.start_time}
+                        wordDifficulty={latestDiffCheck?.word_difficulty ?? {}}
+                        diffs={latestDiffCheck?.word_diffs}
+                      />
+                    )}
 
                     {/* Translation panel (shown only when field is present) */}
                     {currentSentence?.translation && (
@@ -867,7 +877,6 @@ export function DictationPage() {
           </div>
           <div ref={segmentListRef} className="flex-1 overflow-y-auto divide-y divide-border">
             {sentences.map((seg, i) => {
-              // FIX: isDone is now reliable because results are added locally on completion
               const result = results.find((r) => r.sentenceIndex === i);
               const isActive = i === currentIndex;
               const isDone = !!result;
@@ -929,7 +938,6 @@ export function DictationPage() {
                         </span>
                       )}
                     </div>
-                    {/* FIX: Only show full text for completed sentences, masked for all others */}
                     <p className={cn(
                       'text-xs leading-snug line-clamp-2',
                       isDone ? 'text-foreground' : 'text-muted-foreground',
@@ -947,44 +955,54 @@ export function DictationPage() {
 
       {/* ── Mobile sticky input ── */}
       {phase !== 'completed' && (
-        <div className="sm:hidden fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3 z-20 shadow-lg">
-          <div className="flex items-center gap-3 rounded-2xl border-2 border-primary px-4 py-3 bg-background ring-4 ring-primary/10">
-            <input
-              type="text"
+        <div className="sm:hidden fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3 z-20 shadow-lg flex flex-col gap-2 max-h-[55%] overflow-y-auto">
+          {/* Live feedback — unified panel on mobile too */}
+          {latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') && currentSentence && videoId && (
+            <WordSavePanel
+              text={latestDiffCheck.original_text ?? currentSentence.text}
+              videoId={latestDiffCheck.video_id ?? videoId}
+              audioStartTime={latestDiffCheck.audio_start_time ?? currentSentence.start_time}
+              wordDifficulty={latestDiffCheck.word_difficulty ?? {}}
+              diffs={latestDiffCheck.word_diffs}
+            />
+          )}
+          <div className={cn(
+            'flex items-start gap-2 rounded-2xl border-2 px-3 py-2 bg-background ring-4',
+            isVerifying
+              ? 'border-muted-foreground/30 ring-muted/30'
+              : 'border-primary ring-primary/10',
+          )}>
+            <textarea
               value={inputValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Type the next word…"
+              placeholder="Type what you hear…"
+              rows={2}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/40"
+              disabled={isVerifying}
+              className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/40 resize-none leading-snug disabled:opacity-60"
             />
-            {/* Mobile Auto-Next toggle */}
-            <button
-              onClick={toggleAutoNext}
-              title={autoNext ? 'Auto-Next On' : 'Auto-Next Off'}
-              className="shrink-0 p-1.5 rounded-lg transition-colors"
-            >
-              <span className={cn(
-                'relative inline-flex h-4 w-7 rounded-full transition-colors duration-200',
-                autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
-              )}>
-                <span className={cn(
-                  'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
-                  autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
-                )} />
-              </span>
-            </button>
-            <button
-              onClick={handleRevealWord}
-              disabled={currentWordIdx >= words.length}
-              className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
-              title="Reveal next word"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <button
+                onClick={handleRevealHint}
+                disabled={showHint}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
+                title="Show hint"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!inputValue.trim() || isVerifying}
+                className="p-1.5 rounded-lg text-primary disabled:opacity-30"
+                title="Submit (Enter)"
+              >
+                {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </div>
       )}

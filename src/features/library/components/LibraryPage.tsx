@@ -292,10 +292,7 @@ export function LibraryPage() {
               onValueChange={(val) => { setSelectedLang(val); setSelectedLevel('All'); }}
             >
               <SelectTrigger className="border-0 bg-white/50 dark:bg-white/5 backdrop-blur shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl px-4 h-9 text-sm font-medium text-foreground gap-2 focus:ring-1 focus:ring-primary/30 cursor-pointer">
-                <span className="flex items-center gap-2">
-                  <span className="text-base leading-none">{LANGUAGE_MAP[selectedLang]}</span>
-                  <SelectValue />
-                </span>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent
                 className="rounded-2xl shadow-2xl border-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 duration-200 ease-out"
@@ -306,10 +303,7 @@ export function LibraryPage() {
                     value={opt.value}
                     className="rounded-xl px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-white/10 focus:bg-slate-100 dark:focus:bg-white/10"
                   >
-                    <span className="flex items-center gap-3">
-                      <span className="text-base leading-none">{opt}</span>
-                      <span>{opt.label}</span>
-                    </span>
+                    {opt.label}
                   </SelectItem>
                 ))}
               </SelectContent>

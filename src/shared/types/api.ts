@@ -107,7 +107,7 @@ export interface SubmitAnswerRequest {
 
 export interface WordDiffItem {
   word: string;
-  status: 'correct' | 'wrong' | 'missing';
+  status: 'correct' | 'wrong' | 'missing' | 'extra';
   expected: string | null;
 }
 
