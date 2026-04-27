@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLibraryFiltersStore } from '../hooks/useLibraryFiltersStore';
 import { useVideos, useImportVideo, useDeleteVideo } from '../hooks/useVideos';
+import { SubtitleEditorDialog } from './SubtitleEditorDialog';
 import {
   Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
-  Loader2, AlertCircle, RefreshCw, Trash2,
+  Loader2, AlertCircle, RefreshCw, Trash2, Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,6 +63,7 @@ function LevelBadge({ level }: { level: string | null }) {
 
 function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: string) => void }) {
   const navigate = useNavigate();
+  const [editorOpen, setEditorOpen] = useState(false);
   return (
     <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 hover:border-primary/20 flex flex-col">
       <div className="relative aspect-video bg-muted overflow-hidden">
@@ -146,13 +148,28 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
           </div>
         )}
         {video.play_count === 0 && <div className="mb-4" />}
-        <div className="mt-auto">
-          <Button className="w-full" size="sm" onClick={() => navigate(`/dictation/${video.id}`)}>
+        <div className="mt-auto flex gap-2">
+          <Button className="flex-1" size="sm" onClick={() => navigate(`/dictation/${video.id}`)}>
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Start Dictation
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditorOpen(true)}
+            title="Edit subtitles"
+          >
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            Edit
+          </Button>
         </div>
       </div>
+      <SubtitleEditorDialog
+        videoId={video.id}
+        videoTitle={video.title}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+      />
     </div>
   );
 }
@@ -238,10 +255,10 @@ export function LibraryPage() {
                 size="sm"
                 disabled={!youtubeUrl.trim() || importMutation.isPending}
                 onClick={() => handleImport(youtubeUrl.trim())}
-                className="gap-1.5"
+                className="gap-1.5 h-[38px] px-4"
               >
                 {importMutation.isPending ? (
-                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Importing...</>
+                  <><Loader2 className="h-5 w-3.5 animate-spin" />Importing...</>
                 ) : (
                   'Add Video'
                 )}

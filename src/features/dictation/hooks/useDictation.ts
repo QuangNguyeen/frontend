@@ -1,37 +1,50 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dictationService } from '../services/dictationService';
 import { historyKeys } from '@/features/history/hooks/useHistory';
 import { dashboardKeys } from '@/features/dashboard/hooks/useDashboard';
 import type {
+  ClozeChunksResponse,
+  ClozeResultResponse,
+  ClozeSubmitRequest,
+  ClozeFullResponse,
+  ClozeSubmitAllRequest,
+  ClozeSubmitAllResponse,
   DictationSessionResponse,
+  PracticeMode,
   SubmitAnswerRequest,
   SentenceResultResponse,
 } from '@/shared/types/api';
 
 /**
  * Manages dictation session lifecycle for a given video.
- * Creates or resumes the session once on mount.
- * Returns the session ID and full session data (for resume support).
+ * The session is created lazily once both `videoId` and `practiceMode` are
+ * known — this lets the setup screen render first and gate creation on the
+ * user's mode pick.
  */
-const pendingSessionVideoIds = new Set<string>();
+const pendingSessionKeys = new Set<string>();
 
-export function useDictationSession(videoId: string | undefined) {
+export function useDictationSession(
+  videoId: string | undefined,
+  practiceMode: PracticeMode | null,
+) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<DictationSessionResponse | null>(null);
 
   useEffect(() => {
-    if (!videoId || sessionId || pendingSessionVideoIds.has(videoId)) return;
-    pendingSessionVideoIds.add(videoId);
+    if (!videoId || !practiceMode || sessionId) return;
+    const key = `${videoId}:${practiceMode}`;
+    if (pendingSessionKeys.has(key)) return;
+    pendingSessionKeys.add(key);
     dictationService
-      .createSession(videoId)
+      .createSession(videoId, practiceMode)
       .then((s) => {
         setSessionId(s.id);
         setSessionData(s);
       })
       .catch(console.error)
-      .finally(() => pendingSessionVideoIds.delete(videoId));
-  }, [videoId, sessionId]);
+      .finally(() => pendingSessionKeys.delete(key));
+  }, [videoId, practiceMode, sessionId]);
 
   return { sessionId, sessionData };
 }
@@ -69,6 +82,58 @@ export function useCompleteSession(sessionId: string | null) {
       return dictationService.completeSession(sessionId);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: historyKeys.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
+    },
+  });
+}
+
+/** Fetches the cloze paragraph chunks for a session (cloze-mode only). */
+export function useClozeChunks(sessionId: string | null) {
+  return useQuery<ClozeChunksResponse>({
+    queryKey: ['dictation', 'cloze', sessionId],
+    queryFn: () => dictationService.getClozeChunks(sessionId!),
+    enabled: !!sessionId,
+    staleTime: Infinity,        // chunks are deterministic per (video × mode)
+  });
+}
+
+/** Mutation for submitting one cloze chunk's blanks. */
+export function useSubmitCloze(sessionId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<ClozeResultResponse | null, Error, ClozeSubmitRequest>({
+    mutationFn: (body) => {
+      if (!sessionId) return Promise.resolve(null);
+      return dictationService.submitCloze(sessionId, body);
+    },
+    onSuccess: (result) => {
+      if (!result) return;
+      queryClient.invalidateQueries({ queryKey: historyKeys.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
+    },
+  });
+}
+
+/** Fetches the full-transcript cloze data for a session + difficulty. */
+export function useClozeFullData(sessionId: string | null, difficulty: string) {
+  return useQuery<ClozeFullResponse>({
+    queryKey: ['dictation', 'cloze-full', sessionId, difficulty],
+    queryFn: () => dictationService.getClozeFullData(sessionId!, difficulty),
+    enabled: !!sessionId,
+    staleTime: Infinity,
+  });
+}
+
+/** Mutation for submitting all cloze blanks at once. */
+export function useSubmitClozeAll(sessionId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<ClozeSubmitAllResponse | null, Error, ClozeSubmitAllRequest>({
+    mutationFn: (body) => {
+      if (!sessionId) return Promise.resolve(null);
+      return dictationService.submitClozeAll(sessionId, body);
+    },
+    onSuccess: (result) => {
+      if (!result) return;
       queryClient.invalidateQueries({ queryKey: historyKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
     },

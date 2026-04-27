@@ -8,7 +8,7 @@
 
 :root {
 
-    --background: oklch(1 0 0);
+    --background: oklch(0.985 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
@@ -16,68 +16,80 @@
     --popover-foreground: oklch(0.145 0 0);
     --primary: oklch(0.205 0 0);
     --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
+    --secondary: oklch(0.965 0 0);
     --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
+    --muted: oklch(0.955 0 0);
+    --muted-foreground: oklch(0.5 0 0);
+    --accent: oklch(0.955 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
+    --border: oklch(0.9 0 0);
+    --input: oklch(0.9 0 0);
     --ring: oklch(0.708 0 0);
+    --accent-emerald: oklch(0.696 0.17 162.48);
+    --accent-emerald-foreground: oklch(0.985 0 0);
+    --accent-amber: oklch(0.77 0.162 70.08);
+    --accent-amber-foreground: oklch(0.205 0 0);
     --chart-1: oklch(0.809 0.105 251.813);
     --chart-2: oklch(0.623 0.214 259.815);
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+    --sidebar: oklch(0.97 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent: oklch(0.93 0 0);
     --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-border: oklch(0.9 0 0);
     --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
+    --accent-emerald: oklch(0.74 0.17 162.48);
+    --accent-emerald-foreground: oklch(0.145 0 0);
+    --accent-amber: oklch(0.8 0.162 70.08);
+    --accent-amber-foreground: oklch(0.145 0 0);
+    --background: oklch(0.135 0 0);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    --card: oklch(0.2 0 0);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: oklch(0.2 0 0);
     --popover-foreground: oklch(0.985 0 0);
     --primary: oklch(0.922 0 0);
     --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
+    --secondary: oklch(0.25 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --muted: oklch(0.25 0 0);
+    --muted-foreground: oklch(0.72 0 0);
+    --accent: oklch(0.25 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
+    --border: oklch(1 0 0 / 14%);
+    --input: oklch(1 0 0 / 18%);
     --ring: oklch(0.556 0 0);
     --chart-1: oklch(0.809 0.105 251.813);
     --chart-2: oklch(0.623 0.214 259.815);
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: oklch(0.175 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-primary: oklch(0.922 0 0);
+    --sidebar-primary-foreground: oklch(0.145 0 0);
+    --sidebar-accent: oklch(0.28 0 0);
     --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-border: oklch(1 0 0 / 14%);
     --sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
     --font-sans: 'Geist Variable', sans-serif;
+    --color-accent-emerald: var(--accent-emerald);
+    --color-accent-emerald-foreground: var(--accent-emerald-foreground);
+    --color-accent-amber: var(--accent-amber);
+    --color-accent-amber-foreground: var(--accent-amber-foreground);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -116,6 +128,34 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+
+    /* Type scale — Major Third (1.25). Body anchored at 16px. */
+    --text-xs: 0.75rem;              /* 12px — micro/meta */
+    --text-xs--line-height: 1.5;
+    --text-sm: 0.875rem;             /* 14px — secondary */
+    --text-sm--line-height: 1.55;
+    --text-base: 1rem;               /* 16px — body */
+    --text-base--line-height: 1.625; /* comfortable reading */
+    --text-lg: 1.25rem;              /* 20px — lead/H5 */
+    --text-lg--line-height: 1.5;
+    --text-xl: 1.5625rem;            /* 25px — H4 */
+    --text-xl--line-height: 1.4;
+    --text-2xl: 1.953rem;            /* 31.25px — H3 */
+    --text-2xl--line-height: 1.25;
+    --text-3xl: 2.441rem;            /* 39px — H2 */
+    --text-3xl--line-height: 1.15;
+    --text-4xl: 3.052rem;            /* 48.8px — H1 */
+    --text-4xl--line-height: 1.08;
+    --text-5xl: 3.815rem;            /* 61px — display */
+    --text-5xl--line-height: 1.03;
+    --text-6xl: 4.768rem;            /* 76.3px — display lg */
+    --text-6xl--line-height: 1;
+    --text-7xl: 5.96rem;             /* 95.4px — hero */
+    --text-7xl--line-height: 0.95;
+
+    /* Soft elevation — premium depth without heavy shadows */
+    --shadow-soft: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 2px 6px -1px oklch(0 0 0 / 0.03);
+    --shadow-soft-lg: 0 2px 4px 0 oklch(0 0 0 / 0.04), 0 8px 24px -4px oklch(0 0 0 / 0.05);
 }
 
 @layer base {
@@ -128,4 +168,21 @@
   html {
     @apply font-sans;
     }
+}
+
+@keyframes dash-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.dash-enter {
+  animation: dash-enter 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes dash-bar-rise {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.dash-bar {
+  transform-origin: bottom;
+  animation: dash-bar-rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }

@@ -34,6 +34,12 @@ export function useDueCards() {
 
 /**
  * Mutation to save a new word. Refreshes the vocabulary list on success.
+ *
+ * The backend returns the SavedWord row immediately after INSERT, so the first
+ * response has null phonetic/audio_url/meaning/context_translation — enrichment
+ * (Gemini + dictionaryapi.dev) runs in a background task and backfills those
+ * fields a couple of seconds later. A delayed second invalidation picks up the
+ * enriched row without the user needing to refresh.
  */
 export function useSaveWord() {
   const queryClient = useQueryClient();
@@ -41,6 +47,9 @@ export function useSaveWord() {
     mutationFn: (data: SaveWordRequest) => vocabularyService.saveWord(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: vocabularyKeys.all });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: vocabularyKeys.all });
+      }, 2500);
     },
   });
 }
@@ -56,6 +65,20 @@ export function useReviewWord() {
       vocabularyService.reviewWord(wordId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: vocabularyKeys.due });
+      queryClient.invalidateQueries({ queryKey: vocabularyKeys.all });
+    },
+  });
+}
+
+/**
+ * Mutation to update a word's meaning/note. Refreshes the vocabulary list on success.
+ */
+export function useUpdateWord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ wordId, data }: { wordId: string; data: { meaning?: string; note?: string } }) =>
+      vocabularyService.updateWord(wordId, data),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: vocabularyKeys.all });
     },
   });

@@ -1,22 +1,17 @@
-import { useMemo, useState, useEffect } from 'react';
-import { BookmarkPlus, Check, Loader2, Lightbulb } from 'lucide-react';
+import { useMemo } from 'react';
+import { Check, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { vocabularyService } from '@/features/vocabulary/services/vocabularyService';
 import type { WordDiffItem } from '@/shared/types/api';
 
 interface WordSavePanelProps {
-  /** Plain sentence text — used as fallback context and for flashcard saves. */
   text: string;
   videoId: string;
   audioStartTime: number;
   wordDifficulty?: Record<string, number>;
-  /**
-   * Optional server-computed diffs. When provided, the panel renders the
-   * expected sentence as an inline paragraph with colored highlights per
-   * word status, and enforces progressive-reveal masking after the first
-   * mistake. When omitted, falls back to a plain-text reveal.
-   */
   diffs?: WordDiffItem[];
+  savedWords?: Set<string>;
+  previewingWord?: string | null;
+  onWordClick?: (word: string, contextSentence: string, audioStartTime: number) => void;
 }
 
 type TokenStatus = 'correct' | 'wrong' | 'missing' | 'masked' | 'plain';
@@ -33,7 +28,7 @@ interface Token {
 const DIFFICULTY_THRESHOLD = 0.6;
 
 function cleanForSave(word: string): string {
-  return word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+  return word.toLowerCase().replace(/[^\p{L}\p{N}'\-]/gu, '');
 }
 
 function wordLen(word: string): number {
@@ -103,6 +98,9 @@ export function WordSavePanel({
   audioStartTime,
   wordDifficulty = {},
   diffs,
+  savedWords: savedWordsProp,
+  previewingWord = null,
+  onWordClick,
 }: WordSavePanelProps) {
   const tokens = useMemo(
     () =>
@@ -112,57 +110,7 @@ export function WordSavePanel({
     [diffs, text, wordDifficulty],
   );
 
-  /** Selection and saved state keyed by the clean word. */
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [saved, setSaved] = useState<Set<string>>(new Set());
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Clear transient selection whenever the underlying sentence/diffs change.
-  useEffect(() => {
-    setSelected(new Set());
-  }, [text, diffs]);
-
-  const toggle = (clean: string) => {
-    if (!clean || saved.has(clean)) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(clean)) next.delete(clean);
-      else next.add(clean);
-      return next;
-    });
-  };
-
-  const selectedWords = Array.from(selected).filter((w) => !saved.has(w));
-  const hasSelection = selectedWords.length > 0;
-
-  const saveSelected = async () => {
-    if (!hasSelection || isSaving) return;
-    setIsSaving(true);
-    try {
-      await Promise.allSettled(
-        selectedWords.map((word) =>
-          vocabularyService.saveWord({
-            word,
-            video_id: videoId,
-            context_sentence: text,
-            audio_start_time: audioStartTime,
-            source: 'dictation',
-          }),
-        ),
-      );
-      setSaved((prev) => {
-        const next = new Set(prev);
-        selectedWords.forEach((w) => next.add(w));
-        return next;
-      });
-      setSelected(new Set());
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Container palette — red-tinted when there's an unresolved mistake,
-  // green otherwise.
+  const saved = savedWordsProp ?? new Set<string>();
   const hasVisibleError = tokens.some(
     (t) => t.status === 'wrong' || t.status === 'missing',
   );
@@ -196,7 +144,7 @@ export function WordSavePanel({
       <p className="text-lg leading-[2] text-foreground select-none">
         {tokens.map((tok, i) => {
           const isSaved = !!tok.clean && saved.has(tok.clean);
-          const isSelected = !!tok.clean && selected.has(tok.clean);
+          const isSelected = !!tok.clean && previewingWord === tok.clean;
           const isMasked = tok.status === 'masked';
 
           // Base status color (overridden by selected/saved)
@@ -224,12 +172,12 @@ export function WordSavePanel({
               <span
                 role={tok.clickable ? 'button' : undefined}
                 tabIndex={tok.clickable ? 0 : -1}
-                onClick={() => tok.clickable && toggle(tok.clean)}
+                onClick={() => tok.clickable && !isSaved && onWordClick?.(tok.clean, text, audioStartTime)}
                 onKeyDown={(e) => {
-                  if (!tok.clickable) return;
+                  if (!tok.clickable || isSaved) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    toggle(tok.clean);
+                    onWordClick?.(tok.clean, text, audioStartTime);
                   }
                 }}
                 title={isMasked ? 'Hidden — fix the error first' : undefined}
@@ -247,31 +195,6 @@ export function WordSavePanel({
         })}
       </p>
 
-      {/* Save button — slides up when any word is selected */}
-      <div
-        className={cn(
-          'mt-4 flex justify-end transition-all duration-300 ease-out overflow-hidden',
-          hasSelection ? 'max-h-12 opacity-100 translate-y-0' : 'max-h-0 opacity-0 translate-y-2',
-        )}
-      >
-        <button
-          onClick={saveSelected}
-          disabled={isSaving}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold',
-            'bg-primary text-primary-foreground shadow-md',
-            'hover:bg-primary/90 active:scale-[0.97] transition-all duration-150',
-            'disabled:opacity-70 disabled:pointer-events-none',
-          )}
-        >
-          {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <BookmarkPlus className="h-4 w-4" />
-          )}
-          Save {selectedWords.length} {selectedWords.length === 1 ? 'word' : 'words'}
-        </button>
-      </div>
     </div>
   );
 }

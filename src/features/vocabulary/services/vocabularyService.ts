@@ -5,6 +5,7 @@ import type {
   DueCardsResponse,
   ReviewRequest,
   ReviewResponse,
+  WordPreviewResponse,
 } from '@/shared/types/api';
 
 /**
@@ -39,7 +40,25 @@ export const vocabularyService = {
     return res.data;
   },
 
+  updateWord: async (
+    wordId: string,
+    data: { meaning?: string; note?: string },
+  ): Promise<SavedWordResponse> => {
+    const res = await httpClient.patch<SavedWordResponse>(
+      `/api/v1/vocabulary/${wordId}`,
+      data,
+    );
+    return res.data;
+  },
+
   deleteWord: async (wordId: string): Promise<void> => {
     await httpClient.delete(`/api/v1/vocabulary/${wordId}`);
+  },
+
+  previewWord: async (word: string, context?: string): Promise<WordPreviewResponse> => {
+    const res = await httpClient.get<WordPreviewResponse>('/api/v1/vocabulary/preview', {
+      params: { word, context },
+    });
+    return res.data;
   },
 };

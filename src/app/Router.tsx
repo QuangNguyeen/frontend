@@ -9,6 +9,7 @@ import { DashboardPage } from '../features/dashboard/components/DashboardPage';
 import { HistoryPage } from '../features/history/components/HistoryPage';
 import { VocabularyPage } from '../features/vocabulary/components/VocabularyPage';
 import { FlashCardPage } from '../features/vocabulary/components/FlashCardPage';
+import { ProfilePage } from '../features/profile/components/ProfilePage';
 import { AppLayout } from '../components/layout/AppLayout';
 import { ProtectedRoute } from '../components/layout/ProtectedRoute';
 
@@ -30,6 +31,7 @@ export function AppRouter() {
                     <Route path="/history" element={<HistoryPage />} />
                     <Route path="/vocabulary" element={<VocabularyPage />} />
                     <Route path="/vocabulary/review" element={<FlashCardPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
                 </Route>
             </Route>
 

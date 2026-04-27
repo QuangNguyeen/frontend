@@ -1,5 +1,5 @@
 import { httpClient } from '@/shared/lib/httpClient';
-import type { TokenResponse, UserResponse, RegisterRequest } from '@/shared/types/api';
+import type { TokenResponse, UserResponse, RegisterRequest, UpdateProfileRequest } from '@/shared/types/api';
 
 /**
  * Auth service — all authentication-related API calls.
@@ -31,5 +31,14 @@ export const authService = {
       refresh_token: refreshToken,
     });
     return res.data;
+  },
+
+  updateProfile: async (data: UpdateProfileRequest): Promise<UserResponse> => {
+    const res = await httpClient.put<UserResponse>('/api/v1/auth/me', data);
+    return res.data;
+  },
+
+  logout: async (): Promise<void> => {
+    await httpClient.post('/api/v1/auth/logout');
   },
 };

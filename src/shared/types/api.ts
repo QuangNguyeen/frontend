@@ -21,6 +21,41 @@ export interface RegisterRequest {
   preferred_language?: string;
 }
 
+export interface UpdateProfileRequest {
+  display_name: string;
+  preferred_language?: string | null;
+}
+
+// ─── User Profile (aggregated /api/v1/users/me) ──────────────────────────────
+
+export interface UserPreferences {
+  audio_speed: number;                       // 0.5 – 2.0
+  theme: 'light' | 'dark' | 'system';
+}
+
+export interface UserStatsBlock {
+  total_attempts: number;
+  average_score: number;                     // 0–100, 1 dp
+  total_vocabulary: number;
+  current_streak: number;
+  longest_streak: number;
+}
+
+export interface UserProfileResponse {
+  id: string;
+  email: string;
+  display_name: string;
+  preferred_language: string;
+  preferences: UserPreferences;
+  created_at: string;
+  stats: UserStatsBlock;
+}
+
+export interface UserUpdateRequest {
+  display_name?: string;
+  preferences?: Partial<UserPreferences>;
+}
+
 // ─── Videos ───────────────────────────────────────────────────────────────────
 
 export interface VideoResponse {
@@ -33,6 +68,7 @@ export interface VideoResponse {
   level: string | null;
   is_curated: boolean;
   is_active: boolean;
+  is_auto_generated: boolean;
   thumbnail_url: string;
   play_count: number;
   best_score: number | null;
@@ -69,6 +105,24 @@ export interface TranscriptLanguageResponse {
   is_translatable: boolean;
 }
 
+export interface TranscriptUpdateItem {
+  transcript_id: string;
+  text: string;
+  is_deleted?: boolean;
+}
+
+export interface TranscriptBulkUpdateRequest {
+  items: TranscriptUpdateItem[];
+}
+
+export interface TranscriptBulkUpdateResponse {
+  updated: number;
+}
+
+export interface VideoEditStatusResponse {
+  has_in_progress_attempt: boolean;
+}
+
 export interface ImportVideoRequest {
   youtube_url: string;
   title?: string;
@@ -87,6 +141,8 @@ export interface DictationSessionSentenceResult {
   word_diff: WordDiffItem[];
 }
 
+export type PracticeMode = 'sentence' | 'cloze';
+
 export interface DictationSessionResponse {
   id: string;
   video_id?: string;
@@ -96,6 +152,90 @@ export interface DictationSessionResponse {
   current_sentence_index?: number;
   resumed?: boolean;
   sentence_results?: DictationSessionSentenceResult[];
+  practice_mode?: PracticeMode;
+}
+
+// ─── Cloze (paragraph fill-in-the-blanks) ────────────────────────────────────
+
+export interface ClozeToken {
+  text: string;                 // for non-blanks: includes trailing whitespace
+  is_blank: boolean;
+  blank_index?: number | null;
+}
+
+export interface ClozeChunk {
+  chunk_index: number;
+  start_time: number;
+  end_time: number;
+  tokens: ClozeToken[];
+  blank_count: number;
+}
+
+export interface ClozeChunksResponse {
+  practice_mode: 'cloze';
+  chunks: ClozeChunk[];
+}
+
+export interface ClozeSubmitRequest {
+  chunk_index: number;
+  answers: string[];
+}
+
+export interface ClozeBlankResult {
+  blank_index: number;
+  given: string;
+  expected: string;
+  status: 'correct' | 'wrong';
+}
+
+export interface ClozeResultResponse {
+  chunk_index: number;
+  score: number;
+  correct_count: number;
+  total_count: number;
+  results: ClozeBlankResult[];
+  audio_start_time: number;
+  audio_end_time: number;
+}
+
+// ─── Full-transcript cloze ──────────────────────────────────────────────────
+
+export type ClozeDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface ClozeSegment {
+  segment_index: number;
+  start_time: number;
+  end_time: number;
+  tokens: ClozeToken[];
+  blank_count: number;
+}
+
+export interface ClozeFullResponse {
+  practice_mode: 'cloze';
+  difficulty: string;
+  total_blanks: number;
+  segments: ClozeSegment[];
+}
+
+export interface ClozeSubmitAllRequest {
+  difficulty: string;
+  answers: string[];
+}
+
+export interface SegmentScore {
+  segment_index: number;
+  start_time: number;
+  end_time: number;
+  score: number;
+  blank_results: ClozeBlankResult[];
+}
+
+export interface ClozeSubmitAllResponse {
+  score: number;
+  correct_count: number;
+  total_count: number;
+  results: ClozeBlankResult[];
+  segment_scores: SegmentScore[];
 }
 
 export interface SubmitAnswerRequest {
@@ -199,6 +339,10 @@ export interface SaveWordRequest {
   meaning?: string;
   note?: string;
   source?: string;
+  audio_url?: string;
+  phonetic?: string;
+  context_translation?: string;
+  part_of_speech?: string;
 }
 
 export interface SavedWordResponse {
@@ -210,6 +354,10 @@ export interface SavedWordResponse {
   note: string | null;
   source: string;
   video_id: string | null;
+  phonetic: string | null;
+  audio_url: string | null;
+  context_translation: string | null;
+  part_of_speech: string | null;
   ease_factor: number;
   interval_days: number;
   repetitions: number;
@@ -225,6 +373,10 @@ export interface FlashCardResponse {
   audio_start_time: number | null;
   video_id: string | null;
   meaning: string | null;
+  phonetic: string | null;
+  audio_url: string | null;
+  context_translation: string | null;
+  part_of_speech: string | null;
 }
 
 export interface DueCardsResponse {
@@ -242,4 +394,14 @@ export interface ReviewResponse {
   interval_days: number;
   ease_factor: number;
   repetitions: number;
+}
+
+export interface WordPreviewResponse {
+  word: string;
+  phonetic: string | null;
+  meaning: string | null;
+  audio_url: string | null;
+  context_translation: string | null;
+  is_saved: boolean;
+  part_of_speech: string | null;
 }

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { videoService } from '../services/videoService';
-import type { ImportVideoRequest } from '@/shared/types/api';
+import type { ImportVideoRequest, TranscriptBulkUpdateRequest } from '@/shared/types/api';
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ export const videoKeys = {
   list: (params?: object) => [...videoKeys.all, 'list', params] as const,
   detail: (id: string) => [...videoKeys.all, 'detail', id] as const,
   transcripts: (id: string) => [...videoKeys.all, 'transcripts', id] as const,
+  editStatus: (id: string) => [...videoKeys.all, 'edit-status', id] as const,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -67,6 +68,33 @@ export function useDeleteVideo() {
     mutationFn: (videoId: string) => videoService.delete(videoId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: videoKeys.all });
+    },
+  });
+}
+
+/**
+ * Fetches whether the current user has an in-progress dictation attempt for
+ * the video. Used to warn before editing subtitles alters past scoring.
+ */
+export function useVideoEditStatus(videoId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: videoKeys.editStatus(videoId ?? ''),
+    queryFn: () => videoService.getEditStatus(videoId!),
+    enabled: !!videoId && enabled,
+  });
+}
+
+/**
+ * Mutation that bulk-updates transcript text for a video. Invalidates the
+ * transcript cache so the next Dictation session fetches the edited text.
+ */
+export function useUpdateTranscripts(videoId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: TranscriptBulkUpdateRequest) =>
+      videoService.updateTranscripts(videoId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: videoKeys.transcripts(videoId) });
     },
   });
 }

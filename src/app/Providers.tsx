@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient({
@@ -21,6 +22,7 @@ export function Providers({ children }: ProvidersProps) {
         <QueryClientProvider client={queryClient}>
             <BrowserRouter>
                 {children}
+                <Toaster position="bottom-right" richColors closeButton />
             </BrowserRouter>
         </QueryClientProvider>
     );

@@ -5,6 +5,9 @@ import type {
   TranscriptLanguageResponse,
   LevelAnalysisResponse,
   ImportVideoRequest,
+  TranscriptBulkUpdateRequest,
+  TranscriptBulkUpdateResponse,
+  VideoEditStatusResponse,
 } from '@/shared/types/api';
 
 /**
@@ -39,7 +42,9 @@ export const videoService = {
   },
 
   import: async (data: ImportVideoRequest): Promise<VideoResponse> => {
-    const res = await httpClient.post<VideoResponse>('/api/v1/videos/import', data);
+    const res = await httpClient.post<VideoResponse>('/api/v1/videos/import', data, {
+      timeout: 120_000,
+    });
     return res.data;
   },
 
@@ -57,7 +62,26 @@ export const videoService = {
   refresh: async (videoId: string, maxSegmentDuration?: number): Promise<VideoResponse> => {
     const res = await httpClient.put<VideoResponse>(`/api/v1/videos/${videoId}/refresh`, null, {
       params: maxSegmentDuration ? { max_segment_duration: maxSegmentDuration } : undefined,
+      timeout: 120_000,
     });
+    return res.data;
+  },
+
+  updateTranscripts: async (
+    videoId: string,
+    payload: TranscriptBulkUpdateRequest,
+  ): Promise<TranscriptBulkUpdateResponse> => {
+    const res = await httpClient.put<TranscriptBulkUpdateResponse>(
+      `/api/v1/videos/${videoId}/transcripts`,
+      payload,
+    );
+    return res.data;
+  },
+
+  getEditStatus: async (videoId: string): Promise<VideoEditStatusResponse> => {
+    const res = await httpClient.get<VideoEditStatusResponse>(
+      `/api/v1/videos/${videoId}/edit-status`,
+    );
     return res.data;
   },
 };

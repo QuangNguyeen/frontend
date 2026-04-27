@@ -45,6 +45,7 @@ export interface YoutubePlayerHandle {
 
 interface YoutubePlayerProps {
   videoId: string;
+  endTime?: number | null;
   onTimeUpdate?: (currentTime: number) => void;
   onPlayChange?: (playing: boolean) => void;
   className?: string;
@@ -101,7 +102,7 @@ function Waveform({ active }: { active: boolean }) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>(
-  ({ videoId, onTimeUpdate, onPlayChange, className }, ref) => {
+  ({ videoId, endTime, onTimeUpdate, onPlayChange, className }, ref) => {
     const innerRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const progressBarRef = useRef<HTMLDivElement>(null);
@@ -160,12 +161,34 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
         setRateState(r);
         if (innerRef.current) innerRef.current.playbackRate = r;
       },
+      getCurrentTime() { return currentTimeRef.current; },
     }));
 
     // ── Sync playback rate ────────────────────────────────────────────────────
     useEffect(() => {
       if (innerRef.current) innerRef.current.playbackRate = rate;
     }, [rate, playing]);
+
+    // ── Sentence-boundary time guard ─────────────────────────────────────────
+    // YouTube iframe doesn't fire native timeupdate events reliably.
+    // Poll at 100ms to emit onTimeUpdate and auto-pause at endTime boundary.
+    useEffect(() => {
+      if (!playing) return;
+      const id = setInterval(() => {
+        const el = innerRef.current;
+        if (!el) return;
+        const t = typeof el.currentTime === 'number' ? el.currentTime : 0;
+        setCurrentTime(t);
+        currentTimeRef.current = t;
+        onTimeUpdate?.(t);
+        if (endTime != null && t >= endTime) {
+          setPlaying(false);
+          onPlayChange?.(false);
+          clearInterval(id);
+        }
+      }, 100);
+      return () => clearInterval(id);
+    }, [playing, endTime, onTimeUpdate, onPlayChange]);
 
     // ── Fullscreen detection ──────────────────────────────────────────────────
     useEffect(() => {

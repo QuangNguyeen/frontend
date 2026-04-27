@@ -1,99 +1,321 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  Flame, TrendingUp, Clock, PlayCircle, BookOpen,
-  ChevronRight, Target, Award, Loader2, AlertCircle, Trophy,
+  PlayCircle, BookMarked, ArrowRight, AlertCircle, Flame,
 } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
-import { ActivityCalendar } from 'react-activity-calendar';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDashboard, useDashboardHistory } from '../hooks/useDashboard';
 import { useVideos } from '@/features/library/hooks/useVideos';
 import { cn } from '@/lib/utils';
+import type {
+  HeatmapDay, HistoryEntryResponse, VideoResponse,
+} from '@/shared/types/api';
+
+const TODAY_GOAL_SENTENCES = 20;
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
-function formatDate(iso: string) {
+function formatMonthDay(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/**
- * Build a full Jan 1 → Dec 31 array for the current year,
- * merging in actual activity counts from the API.
- */
-function buildFullYearHeatmap(apiData: Array<{ date: string; count: number; level: number }>) {
-  const year = new Date().getFullYear();
-  const start = new Date(year, 0, 1);   // Jan 1
-  const end = new Date(year, 11, 31);   // Dec 31
-
-  // Index API data by date string for O(1) lookup
+function buildLast30Days(apiData: HeatmapDay[]): HeatmapDay[] {
   const lookup = new Map(apiData.map((d) => [d.date, d]));
-
-  const result: Array<{ date: string; count: number; level: number }> = [];
-  const d = new Date(start);
-  while (d <= end) {
-    const iso = d.toISOString().slice(0, 10); // "2026-01-01"
-    const entry = lookup.get(iso);
-    result.push(entry ?? { date: iso, count: 0, level: 0 });
-    d.setDate(d.getDate() + 1);
+  const today = new Date();
+  const result: HeatmapDay[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    result.push(lookup.get(iso) ?? { date: iso, count: 0, level: 0 });
   }
   return result;
 }
 
-function ScoreBadge({ score }: { score: number }) {
+function findVideoForHistory(
+  h: HistoryEntryResponse | undefined,
+  videos: VideoResponse[],
+): VideoResponse | undefined {
+  if (!h) return undefined;
+  return videos.find((v) => v.title === h.video_title);
+}
+
+function pickContinueTarget(
+  history: HistoryEntryResponse[],
+): HistoryEntryResponse | undefined {
+  return history.find((h) => h.status !== 'completed') ?? history[0];
+}
+
+function progressToPercent(str?: string): number {
+  if (!str) return 0;
+  const [done, total] = str.split('/').map(Number);
+  if (!total || Number.isNaN(done)) return 0;
+  return (done / total) * 100;
+}
+
+/* ─── Small pieces ─────────────────────────────────────────────────────────── */
+
+function MicroLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn(
-      'text-xs font-semibold px-2 py-0.5 rounded-full',
-      score >= 80 ? 'bg-green-100 text-green-700' :
-      score >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700',
-    )}>
-      {Math.round(score)}%
-    </span>
+    <p
+      className={cn(
+        'text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground',
+        className,
+      )}
+    >
+      {children}
+    </p>
   );
 }
 
-/* ─── Skeleton Loaders ─────────────────────────────────────────────────────── */
-
-function StatsSkeleton() {
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-card border border-border rounded-xl p-5 animate-pulse">
-          <div className="h-9 w-9 rounded-lg bg-muted mb-3" />
-          <div className="h-7 w-16 bg-muted rounded mb-1" />
-          <div className="h-4 w-24 bg-muted rounded" />
-        </div>
-      ))}
+    <div className="flex-1 px-8 py-7 min-w-0">
+      <MicroLabel>{label}</MicroLabel>
+      <p className="text-2xl font-semibold mt-3 leading-none tabular-nums tracking-tight">
+        {value}
+      </p>
+      {sub && <p className="text-sm text-muted-foreground mt-3 leading-snug">{sub}</p>}
     </div>
   );
 }
 
-function ChartSkeleton({ height = 200 }: { height?: number }) {
+/* ─── Hero ─────────────────────────────────────────────────────────────────── */
+
+function Hero({
+  streak,
+  todaySessions,
+  continueTarget,
+  continueVideo,
+  onContinue,
+  onVocabulary,
+  onLibrary,
+}: {
+  streak: number;
+  todaySessions: number;
+  continueTarget?: HistoryEntryResponse;
+  continueVideo?: VideoResponse;
+  onContinue: () => void;
+  onVocabulary: () => void;
+  onLibrary: () => void;
+}) {
+  const todayProgress = Math.min(todaySessions / TODAY_GOAL_SENTENCES, 1);
+  const inProgress = continueTarget && continueTarget.status !== 'completed';
+  const ctaLabel = continueTarget
+    ? inProgress ? 'Continue' : 'Start new session'
+    : 'Start your first session';
+  const ctaTitle = continueTarget?.video_title ?? 'Pick a video from your library';
+  const ctaProgressPct = inProgress ? progressToPercent(continueTarget.progress_str) : 0;
+
   return (
-    <div className="animate-pulse bg-muted/50 rounded-lg" style={{ height }} />
+    <section className="grid grid-cols-12 gap-8 lg:gap-12 items-center">
+      {/* Streak numeral — 5/12 */}
+      <div
+        className="col-span-12 lg:col-span-5 dash-enter"
+        style={{ animationDelay: '0ms' }}
+      >
+        <MicroLabel className="flex items-center gap-1.5">
+          <Flame className="h-3 w-3 text-[color:var(--accent-amber)]" />
+          Current streak
+        </MicroLabel>
+        <p
+          className="font-semibold tracking-[-0.04em] leading-[0.88] mt-3 tabular-nums text-[color:var(--accent-amber)]"
+          style={{ fontSize: 'clamp(6rem, 14vw, 11.125rem)' }}
+        >
+          {streak}
+        </p>
+        <div className="mt-6 max-w-sm">
+          <p className="text-base text-foreground leading-snug">
+            <span className="text-muted-foreground">Today's goal:</span>{' '}
+            <span className="font-semibold tabular-nums">
+              {todaySessions} / {TODAY_GOAL_SENTENCES} sentences
+            </span>
+          </p>
+          <div className="mt-3 h-1.5 w-full bg-border rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[color:var(--accent-emerald)] transition-[width] duration-700 ease-out"
+              style={{ width: `${todayProgress * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* CTA stack — 7/12 */}
+      <div
+        className="col-span-12 lg:col-span-7 flex flex-col gap-3 dash-enter"
+        style={{ animationDelay: '100ms' }}
+      >
+        <button
+          onClick={onContinue}
+          className="group relative flex items-center gap-4 h-20 px-5 bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] rounded-xl overflow-hidden shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
+        >
+          {continueVideo?.thumbnail_url ? (
+            <img
+              src={continueVideo.thumbnail_url}
+              alt=""
+              className="h-14 w-20 object-cover rounded-md shrink-0 bg-black/20"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="h-14 w-20 rounded-md bg-white/15 flex items-center justify-center shrink-0">
+              <PlayCircle className="h-6 w-6" />
+            </div>
+          )}
+          <div className="flex-1 text-left min-w-0">
+            <p className="text-xs font-semibold tracking-[0.12em] uppercase opacity-85">
+              {ctaLabel}
+            </p>
+            <p className="text-lg font-semibold truncate mt-1 leading-tight">
+              {ctaTitle}
+            </p>
+          </div>
+          {inProgress && continueTarget?.progress_str && (
+            <span className="text-base font-semibold tabular-nums opacity-95 shrink-0">
+              {continueTarget.progress_str}
+            </span>
+          )}
+          <ArrowRight className="h-5 w-5 shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5" />
+          {inProgress && (
+            <span
+              className="absolute bottom-0 left-0 h-[2px] bg-white/80 transition-[width] duration-700 ease-out"
+              style={{ width: `${ctaProgressPct}%` }}
+            />
+          )}
+        </button>
+
+        <button
+          onClick={onVocabulary}
+          className="group flex items-center gap-3 h-16 px-5 border border-border bg-card rounded-xl transition-all duration-150 ease-out hover:border-foreground/60 hover:bg-muted/40 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <BookMarked className="h-[18px] w-[18px] shrink-0" />
+          <span className="text-base font-medium flex-1 text-left">Review vocabulary</span>
+          <ArrowRight className="h-[18px] w-[18px] shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5" />
+        </button>
+
+        <button
+          onClick={onLibrary}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors self-start mt-2 inline-flex items-center gap-1.5"
+        >
+          Browse library
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </section>
   );
 }
 
-/* ─── Stat Card ────────────────────────────────────────────────────────────── */
+/* ─── 30-day timeline ─────────────────────────────────────────────────────── */
 
-function StatCard({ icon, label, value, sub, accent }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string; accent?: string;
+function Timeline({
+  days,
+  avgAccuracy,
+}: {
+  days: HeatmapDay[];
+  avgAccuracy?: number;
 }) {
+  const maxCount = Math.max(1, ...days.map((d) => d.count));
   return (
-    <Card className="border-border">
-      <CardContent className="p-5">
-        <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center mb-3', accent ?? 'bg-muted')}>
-          {icon}
+    <section className="dash-enter" style={{ animationDelay: '200ms' }}>
+      <div className="flex items-baseline justify-between mb-5">
+        <MicroLabel>Last 30 days</MicroLabel>
+        {avgAccuracy != null && (
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {Math.round(avgAccuracy)}% avg accuracy
+          </p>
+        )}
+      </div>
+      <div className="flex items-end gap-[3px] h-28 border-t border-b border-border py-4">
+        {days.map((d, i) => {
+          const h = d.count > 0 ? Math.max(10, (d.count / maxCount) * 72) : 3;
+          const color =
+            d.level >= 3 ? 'var(--accent-emerald)' :
+            d.level >= 1 ? 'var(--accent-amber)' :
+            'var(--border)';
+          return (
+            <div
+              key={d.date}
+              className="flex-1 min-w-0 rounded-[2px] dash-bar transition-[filter,transform] duration-150 ease-out hover:brightness-90"
+              style={{
+                height: `${h}px`,
+                backgroundColor: color,
+                animationDelay: `${240 + i * 14}ms`,
+              }}
+              title={`${formatMonthDay(d.date)} · ${d.count} session${d.count === 1 ? '' : 's'}`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex items-baseline justify-between mt-3 flex-wrap gap-y-2">
+        <p className="text-xs tabular-nums text-muted-foreground">
+          {formatMonthDay(days[0].date)}
+        </p>
+        <div className="flex items-center gap-5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-[color:var(--accent-amber)]" />
+            active
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-[color:var(--accent-emerald)]" />
+            high intensity
+          </span>
         </div>
-        <p className="text-2xl font-bold leading-none mb-1">{value}</p>
-        <p className="text-sm text-muted-foreground">{label}</p>
-        {sub && <p className="text-xs text-muted-foreground/70 mt-1">{sub}</p>}
-      </CardContent>
-    </Card>
+        <p className="text-xs tabular-nums text-muted-foreground">Today</p>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Skeletons ───────────────────────────────────────────────────────────── */
+
+function HeroSkeleton() {
+  return (
+    <section className="grid grid-cols-12 gap-8 lg:gap-12 items-center animate-pulse">
+      <div className="col-span-12 lg:col-span-5">
+        <div className="h-3 w-32 bg-muted rounded" />
+        <div
+          className="mt-3 bg-muted rounded"
+          style={{ height: 'clamp(5rem, 12vw, 9.5rem)', width: '60%' }}
+        />
+        <div className="mt-5 h-4 w-48 bg-muted rounded" />
+        <div className="mt-3 h-1 w-full max-w-xs bg-muted rounded" />
+      </div>
+      <div className="col-span-12 lg:col-span-7 flex flex-col gap-3">
+        <div className="h-20 bg-muted rounded-xl" />
+        <div className="h-16 bg-muted/60 rounded-xl" />
+      </div>
+    </section>
+  );
+}
+
+function TimelineSkeleton() {
+  return (
+    <section className="animate-pulse">
+      <div className="h-3 w-24 bg-muted rounded mb-4" />
+      <div className="flex items-end gap-[3px] h-24 border-t border-b border-border py-3">
+        {Array.from({ length: 30 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-1 bg-muted rounded-[2px]"
+            style={{ height: `${10 + ((i * 7) % 55)}px` }}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <section className="flex divide-x divide-border border-y border-border bg-card rounded-xl shadow-soft animate-pulse overflow-hidden">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex-1 px-8 py-7">
+          <div className="h-3 w-24 bg-muted rounded" />
+          <div className="h-7 w-20 bg-muted rounded mt-3" />
+          <div className="h-4 w-28 bg-muted rounded mt-3" />
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -108,259 +330,168 @@ export function DashboardPage() {
   const { data: videos = [] } = useVideos();
 
   const stats = data?.stats;
-  const currentYear = new Date().getFullYear();
-  const heatmap = buildFullYearHeatmap(data?.heatmap ?? []);
-  const trend = data?.accuracy_trend ?? [];
+  const last30 = buildLast30Days(data?.heatmap ?? []);
+  const todaySessions = last30[last30.length - 1]?.count ?? 0;
 
-  const today = new Date();
-  const hour = today.getHours();
+  const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const displayName = user?.display_name ?? 'there';
 
+  const continueTarget = pickContinueTarget(history);
+  const continueVideo = findVideoForHistory(continueTarget, videos);
+
+  const goContinue = () => {
+    if (continueVideo) navigate(`/dictation/${continueVideo.id}`);
+    else navigate('/library');
+  };
+
   return (
-    <div className="min-h-full">
-      {/* Header */}
-      <div className="border-b border-border px-6 py-5">
-        <h1 className="text-xl font-semibold">{greeting}, {displayName}!</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+    <div className="min-h-full bg-background">
+      {/* Greeting bar */}
+      <header
+        className="border-b border-border bg-card px-8 sm:px-14 py-8 flex items-baseline justify-between gap-6 dash-enter"
+        style={{ animationDelay: '0ms' }}
+      >
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+          {greeting}, {displayName}.
+        </h1>
+        <p className="text-xs font-medium tracking-[0.1em] uppercase text-muted-foreground shrink-0">
+          {new Date().toLocaleDateString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric',
+          })}
         </p>
-      </div>
+      </header>
 
-      <div className="px-6 py-6 max-w-5xl space-y-8">
+      <div className="px-8 sm:px-14 py-14 max-w-[1240px] space-y-20">
 
-        {/* ── Stats Cards ─────────────────────────────────────────────────── */}
-        {isLoading ? <StatsSkeleton /> : isError || !stats ? (
+        {isError ? (
           <div className="flex items-center gap-2 text-destructive text-sm">
-            <AlertCircle className="h-4 w-4" />Failed to load stats
+            <AlertCircle className="h-4 w-4" /> Failed to load dashboard
           </div>
+        ) : isLoading ? (
+          <>
+            <HeroSkeleton />
+            <TimelineSkeleton />
+            <StatsSkeleton />
+          </>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <StatCard
-              icon={<Flame className="h-5 w-5 text-orange-500" />}
-              label="Current Streak"
-              value={`${stats.current_streak}d`}
-              sub={`Longest: ${stats.longest_streak}d`}
-              accent="bg-orange-100"
+          <>
+            <Hero
+              streak={stats?.current_streak ?? 0}
+              todaySessions={todaySessions}
+              continueTarget={continueTarget}
+              continueVideo={continueVideo}
+              onContinue={goContinue}
+              onVocabulary={() => navigate('/vocabulary')}
+              onLibrary={() => navigate('/library')}
             />
-            <StatCard
-              icon={<Target className="h-5 w-5 text-blue-600" />}
-              label="Avg. Accuracy"
-              value={`${Math.round(stats.average_accuracy)}%`}
-              sub={`${stats.total_sessions} sessions`}
-              accent="bg-blue-100"
-            />
-            <StatCard
-              icon={<Trophy className="h-5 w-5 text-amber-500" />}
-              label="Sentences Done"
-              value={`${stats.total_sentences}`}
-              accent="bg-amber-100"
-            />
-            <StatCard
-              icon={<Award className="h-5 w-5 text-green-600" />}
-              label="Videos Studied"
-              value={`${stats.total_videos}`}
-              accent="bg-green-100"
-            />
-            <StatCard
-              icon={<Clock className="h-5 w-5 text-violet-600" />}
-              label="Total Sessions"
-              value={`${stats.total_sessions}`}
-              accent="bg-violet-100"
-            />
-          </div>
+
+            <Timeline days={last30} avgAccuracy={stats?.average_accuracy} />
+
+            {stats && (
+              <section
+                className="flex divide-x divide-border border-y border-border bg-card rounded-xl shadow-soft dash-enter overflow-hidden"
+                style={{ animationDelay: '300ms' }}
+              >
+                <Stat
+                  label="Sessions"
+                  value={`${stats.total_sessions}`}
+                  sub={`${stats.total_time_minutes} min total`}
+                />
+                <Stat
+                  label="Accuracy"
+                  value={`${Math.round(stats.average_accuracy)}%`}
+                  sub="All-time avg"
+                />
+                <Stat
+                  label="Sentences"
+                  value={`${stats.total_sentences}`}
+                />
+                <Stat
+                  label="Videos"
+                  value={`${stats.total_videos}`}
+                  sub={`Longest streak: ${stats.longest_streak}d`}
+                />
+              </section>
+            )}
+          </>
         )}
 
-        {/* ── Activity Heatmap ────────────────────────────────────────────── */}
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Learning Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <ChartSkeleton height={160} /> : heatmap.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                No activity yet. Start a dictation session!
-              </p>
-            ) : (
-              <div className="overflow-x-auto pb-2">
-                <ActivityCalendar
-                  data={heatmap}
-                  blockSize={12}
-                  blockMargin={3}
-                  blockRadius={3}
-                  fontSize={12}
-                  hideColorLegend={false}
-                  hideMonthLabels={false}
-                  labels={{
-                    totalCount: `{{count}} sessions in ${currentYear}`,
-                  }}
-                  theme={{
-                    light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
-                    dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
-                  }}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── Accuracy Trend ──────────────────────────────────────────────── */}
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Accuracy Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <ChartSkeleton /> : trend.length < 2 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                Complete at least 2 sessions to see your accuracy trend.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={trend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="accuracyGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    className="fill-muted-foreground"
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    domain={[0, 100]}
-                    tick={{ fontSize: 11 }}
-                    className="fill-muted-foreground"
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Accuracy']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="accuracy"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    fill="url(#accuracyGradient)"
-                    dot={{ r: 3, fill: 'hsl(var(--primary))' }}
-                    activeDot={{ r: 5 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── Two columns: Recent + Suggested ─────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent sessions */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Recent Sessions
-              </h2>
-              <button
-                onClick={() => navigate('/history')}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
-              >
-                View all <ChevronRight className="h-3 w-3" />
-              </button>
-            </div>
-            {historyLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="animate-pulse bg-card border border-border rounded-lg px-4 py-3 flex items-center gap-3">
-                    <div className="h-10 w-14 rounded bg-muted shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-4 w-3/4 bg-muted rounded" />
-                      <div className="h-3 w-1/2 bg-muted rounded" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : history.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <PlayCircle className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <p className="text-sm font-medium">No recent sessions yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Start learning to see your progress here!</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {history.map((h) => (
-                  <div key={h.id} className="bg-card border border-border rounded-lg px-4 py-3 flex items-center gap-3">
-                    <img
-                      src={h.video_thumbnail}
-                      alt=""
-                      className="h-10 w-14 rounded object-cover shrink-0 bg-muted"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{h.video_title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {h.completed_at ? formatDate(h.completed_at) : formatDate(h.updated_at)}
-                        {' · '}
-                        <span className={h.status === 'completed' ? 'text-green-600' : 'text-amber-600'}>
-                          {h.status === 'completed' ? 'Completed' : `In progress (${h.progress_str})`}
-                        </span>
-                      </p>
-                    </div>
-                    {h.score != null && <ScoreBadge score={h.score} />}
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Recent sessions */}
+        <section className="dash-enter" style={{ animationDelay: '400ms' }}>
+          <div className="flex items-baseline justify-between mb-5">
+            <MicroLabel>Recent sessions</MicroLabel>
+            <button
+              onClick={() => navigate('/history')}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            >
+              View all
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
 
-          {/* Suggested next */}
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-              Suggested Next
-            </h2>
-            <div className="space-y-2">
-              {videos.slice(0, 3).map((v) => (
-                <div key={v.id} className="bg-card border border-border rounded-lg flex items-center gap-3 overflow-hidden">
-                  <img
-                    src={v.thumbnail_url}
-                    alt=""
-                    className="h-14 w-20 object-cover shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        `https://placehold.co/80x56/1a1a2e/white?text=${encodeURIComponent(v.channel)}`;
-                    }}
-                  />
-                  <div className="flex-1 min-w-0 py-1">
-                    <p className="text-sm font-medium truncate leading-snug">{v.title}</p>
-                    <p className="text-xs text-muted-foreground">{v.channel}</p>
-                  </div>
-                  <Button size="icon-sm" variant="ghost" className="mr-2 shrink-0" onClick={() => navigate(`/dictation/${v.id}`)}>
-                    <PlayCircle className="h-5 w-5" />
-                  </Button>
-                </div>
+          {historyLoading ? (
+            <ul className="border-t border-border animate-pulse">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li
+                  key={i}
+                  className="flex items-center gap-4 border-b border-border py-5 px-3"
+                >
+                  <div className="h-3 w-14 bg-muted rounded" />
+                  <div className="h-4 flex-1 bg-muted rounded" />
+                  <div className="h-4 w-14 bg-muted rounded" />
+                </li>
               ))}
-              <Button variant="outline" size="sm" className="w-full gap-2 mt-1" onClick={() => navigate('/library')}>
-                <BookOpen className="h-3.5 w-3.5" />Browse All Videos
-              </Button>
+            </ul>
+          ) : history.length === 0 ? (
+            <div className="border-t border-b border-border py-14 text-center bg-card rounded-xl">
+              <div className="h-12 w-12 mx-auto rounded-full border border-border flex items-center justify-center mb-4">
+                <PlayCircle className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-base font-semibold">No sessions yet</p>
+              <p className="text-sm text-muted-foreground mt-1.5">
+                Start a dictation to see your progress here.
+              </p>
             </div>
-          </div>
-        </div>
+          ) : (
+            <ul className="border-t border-border">
+              {history.map((h) => {
+                const video = findVideoForHistory(h, videos);
+                const clickable = !!video;
+                return (
+                  <li
+                    key={h.id}
+                    onClick={clickable ? () => navigate(`/dictation/${video!.id}`) : undefined}
+                    className={cn(
+                      'flex items-center gap-5 border-b border-border py-5 px-3 -mx-3 rounded-md transition-colors duration-150 ease-out',
+                      clickable && 'cursor-pointer hover:bg-muted/60',
+                    )}
+                  >
+                    <p className="text-sm tabular-nums text-muted-foreground w-16 shrink-0">
+                      {formatMonthDay(h.completed_at ?? h.updated_at)}
+                    </p>
+                    <p className="flex-1 text-base font-medium truncate">{h.video_title}</p>
+                    <p
+                      className={cn(
+                        'text-sm tabular-nums shrink-0',
+                        h.status === 'completed'
+                          ? 'text-muted-foreground'
+                          : 'text-[color:var(--accent-amber)] font-semibold',
+                      )}
+                    >
+                      {h.status === 'completed' ? 'Done' : h.progress_str}
+                    </p>
+                    {h.score != null && (
+                      <p className="text-base font-semibold tabular-nums w-14 text-right shrink-0">
+                        {Math.round(h.score)}%
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );

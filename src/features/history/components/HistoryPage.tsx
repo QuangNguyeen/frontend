@@ -32,18 +32,20 @@ function formatDate(iso: string) {
 }
 
 function ScoreBadge({ score }: { score: number }) {
+  // Backend may return 0.0–1.0 (raw) or 0–100 (already scaled)
+  const normalized = score > 0 && score <= 1 ? score * 100 : score;
   return (
     <span
       className={cn(
         'text-sm font-semibold px-2.5 py-1 rounded-full',
-        score >= 80
+        normalized >= 80
           ? 'bg-green-100 text-green-700'
-          : score >= 60
+          : normalized >= 60
             ? 'bg-yellow-100 text-yellow-700'
             : 'bg-red-100 text-red-700',
       )}
     >
-      {Math.round(score)}%
+      {Math.round(normalized)}%
     </span>
   );
 }
