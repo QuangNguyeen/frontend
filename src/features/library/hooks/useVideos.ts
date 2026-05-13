@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { videoService } from '../services/videoService';
 import type { ImportVideoRequest, TranscriptBulkUpdateRequest } from '@/shared/types/api';
 
@@ -37,13 +38,43 @@ export function useVideo(videoId: string | undefined) {
 
 /**
  * Fetches all transcript segments for a video.
+ * When transcription_status is not "ready", polls every 5s and auto-refetches
+ * transcripts once the Celery STT pipeline completes.
  */
 export function useVideoTranscripts(videoId: string | undefined) {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const transcriptsQuery = useQuery({
     queryKey: videoKeys.transcripts(videoId ?? ''),
     queryFn: () => videoService.getTranscripts(videoId!),
     enabled: !!videoId,
   });
+
+  const statusQuery = useQuery({
+    queryKey: [...videoKeys.detail(videoId ?? ''), 'transcription-status'],
+    queryFn: () => videoService.getTranscriptionStatus(videoId!),
+    enabled: !!videoId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'pending' || status === 'processing' ? 5000 : false;
+    },
+  });
+
+  const prevStatus = useRef<string | undefined>();
+  useEffect(() => {
+    const status = statusQuery.data?.status;
+    if (status === 'ready' && prevStatus.current && prevStatus.current !== 'ready') {
+      queryClient.invalidateQueries({ queryKey: videoKeys.transcripts(videoId ?? '') });
+      queryClient.invalidateQueries({ queryKey: videoKeys.detail(videoId ?? '') });
+    }
+    prevStatus.current = status;
+  }, [statusQuery.data?.status, videoId, queryClient]);
+
+  return {
+    ...transcriptsQuery,
+    transcriptionStatus: statusQuery.data?.status,
+    transcriptionError: statusQuery.data?.error,
+  };
 }
 
 /**
@@ -93,8 +124,9 @@ export function useUpdateTranscripts(videoId: string) {
   return useMutation({
     mutationFn: (payload: TranscriptBulkUpdateRequest) =>
       videoService.updateTranscripts(videoId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: videoKeys.transcripts(videoId) });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: videoKeys.transcripts(videoId) });
+      queryClient.invalidateQueries({ queryKey: videoKeys.detail(videoId) });
     },
   });
 }

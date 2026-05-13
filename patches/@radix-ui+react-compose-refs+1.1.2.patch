@@ -1,0 +1,73 @@
+diff --git a/node_modules/@radix-ui/react-compose-refs/dist/index.js b/node_modules/@radix-ui/react-compose-refs/dist/index.js
+index 5ba7a95..b7ef2d2 100644
+--- a/node_modules/@radix-ui/react-compose-refs/dist/index.js
++++ b/node_modules/@radix-ui/react-compose-refs/dist/index.js
+@@ -69,6 +69,30 @@ function composeRefs(...refs) {
+   };
+ }
+ function useComposedRefs(...refs) {
+-  return React.useCallback(composeRefs(...refs), refs);
++  const refsRef = React.useRef(refs);
++  refsRef.current = refs;
++  return React.useCallback((node) => {
++    const currentRefs = refsRef.current;
++    let hasCleanup = false;
++    const cleanups = currentRefs.map((ref) => {
++      const cleanup = setRef(ref, node);
++      if (!hasCleanup && typeof cleanup === "function") {
++        hasCleanup = true;
++      }
++      return cleanup;
++    });
++    if (hasCleanup) {
++      return () => {
++        for (let i = 0; i < cleanups.length; i++) {
++          const cleanup = cleanups[i];
++          if (typeof cleanup === "function") {
++            cleanup();
++          } else {
++            setRef(currentRefs[i], null);
++          }
++        }
++      };
++    }
++  }, []);
+ }
+ //# sourceMappingURL=index.js.map
+diff --git a/node_modules/@radix-ui/react-compose-refs/dist/index.mjs b/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+index 7dd9172..5e2efaa 100644
+--- a/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
++++ b/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+@@ -32,7 +32,31 @@ function composeRefs(...refs) {
+   };
+ }
+ function useComposedRefs(...refs) {
+-  return React.useCallback(composeRefs(...refs), refs);
++  const refsRef = React.useRef(refs);
++  refsRef.current = refs;
++  return React.useCallback((node) => {
++    const currentRefs = refsRef.current;
++    let hasCleanup = false;
++    const cleanups = currentRefs.map((ref) => {
++      const cleanup = setRef(ref, node);
++      if (!hasCleanup && typeof cleanup === "function") {
++        hasCleanup = true;
++      }
++      return cleanup;
++    });
++    if (hasCleanup) {
++      return () => {
++        for (let i = 0; i < cleanups.length; i++) {
++          const cleanup = cleanups[i];
++          if (typeof cleanup === "function") {
++            cleanup();
++          } else {
++            setRef(currentRefs[i], null);
++          }
++        }
++      };
++    }
++  }, []);
+ }
+ export {
+   composeRefs,

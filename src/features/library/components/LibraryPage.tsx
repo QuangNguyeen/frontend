@@ -5,7 +5,8 @@ import { useVideos, useImportVideo, useDeleteVideo } from '../hooks/useVideos';
 import { SubtitleEditorDialog } from './SubtitleEditorDialog';
 import {
   Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
-  Loader2, AlertCircle, RefreshCw, Trash2, Pencil,
+  Loader2, AlertCircle, RefreshCw, Trash2, Pencil, Puzzle, Check,
+  PlayCircle, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,11 +15,14 @@ import {
   AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
+import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
 import { extractApiError } from '@/shared/lib/httpClient';
 import { cn } from '@/lib/utils';
-import type { VideoResponse } from '@/shared/types/api';
+import type { VideoResponse, PracticeMode, ClozeDifficulty } from '@/shared/types/api';
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const JLPT_LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
@@ -61,9 +65,151 @@ function LevelBadge({ level }: { level: string | null }) {
   );
 }
 
+const MODES: { value: PracticeMode; title: string; tagline: string; icon: React.ReactNode }[] = [
+  {
+    value: 'sentence',
+    title: 'Sentence dictation',
+    tagline: 'Type each sentence verbatim.',
+    icon: <Pencil className="h-4 w-4" />,
+  },
+  {
+    value: 'cloze',
+    title: 'Paragraph cloze',
+    tagline: 'Fill in the blanks within a paragraph.',
+    icon: <Puzzle className="h-4 w-4" />,
+  },
+];
+
+const DIFFICULTIES: { value: ClozeDifficulty; label: string; blanks: string; color: { border: string; borderSelected: string; bg: string; icon: string; check: string } }[] = [
+  {
+    value: 'easy', label: 'Easy', blanks: '~10%',
+    color: { border: 'hover:border-emerald-500/50', borderSelected: 'border-emerald-500', bg: 'bg-emerald-500/10', icon: 'text-emerald-500', check: 'bg-emerald-500 text-white' },
+  },
+  {
+    value: 'medium', label: 'Medium', blanks: '~25%',
+    color: { border: 'hover:border-amber-500/50', borderSelected: 'border-amber-500', bg: 'bg-amber-500/10', icon: 'text-amber-500', check: 'bg-amber-500 text-white' },
+  },
+  {
+    value: 'hard', label: 'Hard', blanks: '~40%',
+    color: { border: 'hover:border-rose-500/50', borderSelected: 'border-rose-500', bg: 'bg-rose-500/10', icon: 'text-rose-500', check: 'bg-rose-500 text-white' },
+  },
+];
+
+function ModeSelectDialog({
+  video,
+  open,
+  onOpenChange,
+}: {
+  video: VideoResponse;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<PracticeMode>(video.is_auto_generated ? 'cloze' : 'sentence');
+  const [difficulty, setDifficulty] = useState<ClozeDifficulty>('medium');
+
+  const handleStart = () => {
+    const params = new URLSearchParams({ mode });
+    if (mode === 'cloze') params.set('difficulty', difficulty);
+    navigate(`/dictation/${video.id}?${params.toString()}`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Choose practice mode</DialogTitle>
+          <DialogDescription className="line-clamp-1">{video.title}</DialogDescription>
+        </DialogHeader>
+
+        {video.is_auto_generated && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-300/50 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">
+            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-amber-800 dark:text-amber-300">
+              Auto-generated subtitles — <span className="font-semibold">Paragraph cloze</span> recommended.
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          {MODES.map((m) => {
+            const selected = mode === m.value;
+            const recommended = video.is_auto_generated && m.value === 'cloze';
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMode(m.value)}
+                className={cn(
+                  'flex items-center gap-3 text-left p-3 rounded-lg border transition-all',
+                  selected
+                    ? 'border-foreground bg-foreground/5'
+                    : 'border-border hover:border-foreground/30',
+                )}
+              >
+                <span className={cn(
+                  'h-9 w-9 rounded-lg flex items-center justify-center shrink-0 transition-colors',
+                  selected ? 'bg-foreground text-background' : 'bg-muted text-foreground',
+                )}>
+                  {m.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">{m.title}</span>
+                    {recommended && (
+                      <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">
+                        Recommended
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{m.tagline}</p>
+                </div>
+                <span className={cn(
+                  'h-5 w-5 rounded-full flex items-center justify-center shrink-0',
+                  selected ? 'bg-foreground text-background' : 'border border-border',
+                )}>
+                  {selected && <Check className="h-3 w-3" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {mode === 'cloze' && (
+          <div className="flex gap-2">
+            {DIFFICULTIES.map((d) => {
+              const selected = difficulty === d.value;
+              return (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => setDifficulty(d.value)}
+                  className={cn(
+                    'flex-1 text-center p-2.5 rounded-lg border transition-all',
+                    selected ? `${d.color.borderSelected} ${d.color.bg}` : `border-border ${d.color.border}`,
+                  )}
+                >
+                  <span className={cn('text-sm font-semibold', selected ? d.color.icon : 'text-foreground')}>{d.label}</span>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{d.blanks}</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <Button onClick={handleStart} className="w-full gap-2 mt-1">
+          <PlayCircle className="h-4 w-4" />
+          Start practising
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: string) => void }) {
   const navigate = useNavigate();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [modeDialogOpen, setModeDialogOpen] = useState(false);
   return (
     <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 hover:border-primary/20 flex flex-col">
       <div className="relative aspect-video bg-muted overflow-hidden">
@@ -149,7 +295,7 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
         )}
         {video.play_count === 0 && <div className="mb-4" />}
         <div className="mt-auto flex gap-2">
-          <Button className="flex-1" size="sm" onClick={() => navigate(`/dictation/${video.id}`)}>
+          <Button className="flex-1" size="sm" onClick={() => setModeDialogOpen(true)}>
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Start Dictation
           </Button>
@@ -169,6 +315,11 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
         videoTitle={video.title}
         open={editorOpen}
         onOpenChange={setEditorOpen}
+      />
+      <ModeSelectDialog
+        video={video}
+        open={modeDialogOpen}
+        onOpenChange={setModeDialogOpen}
       />
     </div>
   );

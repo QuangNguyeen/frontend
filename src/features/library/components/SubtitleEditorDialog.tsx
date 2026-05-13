@@ -60,16 +60,16 @@ const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, onCha
   return (
     <div
       className={cn(
-        'group relative flex gap-3 px-4 py-3 transition-colors',
-        isDeleted ? 'bg-destructive/5' : 'hover:bg-muted/30',
+        'group flex gap-3 p-3 bg-card border border-border rounded-lg transition-all',
+        isDeleted ? 'bg-destructive/5 border-destructive/20' : 'hover:border-primary/30 hover:shadow-sm',
       )}
     >
       {/* Timeline gutter */}
-      <div className="flex flex-col items-center shrink-0 w-20 pt-1 gap-1">
-        <span className="text-xs font-medium text-muted-foreground">#{index + 1}</span>
-        <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[11px] font-mono tabular-nums text-muted-foreground">
-          {timeLabel}
-        </span>
+      <div className="w-20 shrink-0 flex flex-col items-center gap-1 border-r border-border pr-3">
+        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">#{index + 1}</span>
+        <div className="bg-muted text-[10px] text-muted-foreground px-1.5 py-1 rounded font-mono text-center leading-tight w-full font-bold whitespace-pre-line">
+          {timeLabel.replace(' – ', ' -\n')}
+        </div>
       </div>
 
       {/* Text area */}
@@ -77,32 +77,31 @@ const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, onCha
         <textarea
           ref={textareaRef}
           defaultValue={original}
-          rows={1}
+          rows={2}
           disabled={isDeleted}
+          spellCheck={false}
           onChange={(e) => {
             onChange(id, e.target.value, original);
             autoResize(textareaRef.current);
           }}
           className={cn(
-            'w-full text-sm bg-transparent rounded-lg px-3 py-2 resize-none overflow-hidden',
-            'border border-transparent transition-all',
-            'focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring',
-            'hover:border-border',
+            'w-full text-sm bg-transparent resize-none outline-none leading-snug py-0.5',
+            'placeholder:text-muted-foreground',
             isDeleted && 'line-through text-muted-foreground opacity-50 cursor-not-allowed',
           )}
         />
       </div>
 
       {/* Delete / Undo button */}
-      <div className="flex items-start pt-1.5 shrink-0">
+      <div className="flex flex-col justify-start shrink-0">
         <button
           type="button"
           onClick={() => onToggleDelete(id)}
           className={cn(
-            'p-1.5 rounded-lg transition-colors',
+            'p-1.5 rounded-md transition-all duration-200',
             isDeleted
               ? 'text-primary hover:bg-primary/10'
-              : 'text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 focus:opacity-100',
+              : 'text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 focus:opacity-100',
           )}
           title={isDeleted ? 'Undo delete' : 'Delete subtitle'}
         >
@@ -113,8 +112,10 @@ const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, onCha
   );
 });
 
+const EMPTY_TRANSCRIPTS: never[] = [];
+
 export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }: Props) {
-  const { data: transcripts = [], isLoading, isError, refetch } = useVideoTranscripts(
+  const { data: transcripts = EMPTY_TRANSCRIPTS, isLoading, isError, refetch } = useVideoTranscripts(
     open ? videoId : undefined,
   );
   const { data: editStatus } = useVideoEditStatus(open ? videoId : undefined);
@@ -137,7 +138,15 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     setDeletedIds(new Set());
     setSaveError('');
     setSavedBanner(false);
-  }, [open, transcripts]);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    currentRef.current = new Map();
+    dirtySetRef.current = new Set();
+    setDirtyCount(0);
+    setDeletedIds(new Set());
+  }, [transcripts, open]);
 
   const handleRowChange = useCallback((id: string, text: string, original: string) => {
     currentRef.current.set(id, text);
@@ -202,11 +211,8 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
       { items },
       {
         onSuccess: () => {
-          dirtySetRef.current = new Set();
-          currentRef.current = new Map();
-          setDirtyCount(0);
-          setDeletedIds(new Set());
           setSavedBanner(true);
+          setSaveError('');
         },
         onError: (err) => setSaveError(extractApiError(err, 'Failed to save subtitles')),
       },
@@ -223,57 +229,59 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[85vh] p-0 gap-0 flex flex-col">
-        <DialogHeader className="px-5 pt-5 pb-4 border-b border-border">
-          <DialogTitle className="pr-8">Edit Subtitles</DialogTitle>
-          <DialogDescription className="line-clamp-1">{videoTitle}</DialogDescription>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0 gap-0 flex flex-col rounded-xl overflow-hidden">
+        <DialogHeader className="px-5 py-3.5 border-b border-border shrink-0">
+          <DialogTitle className="text-lg font-bold leading-none pr-8">Edit Subtitles</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground mt-1.5 font-medium line-clamp-1">{videoTitle}</DialogDescription>
         </DialogHeader>
 
-        {editStatus?.has_in_progress_attempt && (
-          <div className="mx-4 mt-3 flex gap-2 items-start rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3.5 py-2.5 text-xs">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>
-              You have already started practicing this video. Editing the subtitles
-              may alter the scores of completed sentences.
-            </span>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto divide-y divide-border/50">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">Loading subtitles...</span>
+        <div className="flex-1 overflow-y-auto p-4 md:p-5 bg-muted/30">
+          {editStatus?.has_in_progress_attempt && (
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 mb-4 shadow-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs leading-relaxed">
+                You have already started practicing this video. Editing the subtitles
+                may alter the scores of completed sentences.
+              </p>
             </div>
-          ) : isError ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
-              <AlertCircle className="h-6 w-6 text-destructive" />
-              <p className="text-sm font-medium">Failed to load subtitles</p>
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                Try again
-              </Button>
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              No subtitles found for this video.
-            </div>
-          ) : (
-            rows.map((row) => (
-              <Row
-                key={row.id}
-                id={row.id}
-                index={row.index}
-                original={row.original}
-                timeLabel={row.timeLabel}
-                isDeleted={deletedIds.has(row.id)}
-                onChange={handleRowChange}
-                onToggleDelete={handleToggleDelete}
-              />
-            ))
           )}
+
+          <div className="space-y-2.5">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Loading subtitles...</span>
+              </div>
+            ) : isError ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+                <AlertCircle className="h-6 w-6 text-destructive" />
+                <p className="text-sm font-medium">Failed to load subtitles</p>
+                <Button variant="outline" size="sm" onClick={() => refetch()}>
+                  Try again
+                </Button>
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="py-16 text-center text-sm text-muted-foreground">
+                No subtitles found for this video.
+              </div>
+            ) : (
+              rows.map((row) => (
+                <Row
+                  key={row.id}
+                  id={row.id}
+                  index={row.index}
+                  original={row.original}
+                  timeLabel={row.timeLabel}
+                  isDeleted={deletedIds.has(row.id)}
+                  onChange={handleRowChange}
+                  onToggleDelete={handleToggleDelete}
+                />
+              ))
+            )}
+          </div>
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t border-border px-5 py-4">
+        <DialogFooter className="mx-0 mb-0 flex-col gap-2 rounded-none sm:flex-row sm:justify-between sm:items-center border-t border-border px-5 py-3 bg-card shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
           <div className="text-xs text-muted-foreground flex items-center gap-2 min-h-5">
             {saveError && (
               <span className="text-destructive flex items-center gap-1">
@@ -297,14 +305,21 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
               </span>
             )}
           </div>
-          <div className="flex gap-2 sm:justify-end">
-            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+          <div className="flex gap-2.5 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              className="px-5 rounded-lg font-semibold"
+            >
               Close
             </Button>
             <Button
               onClick={handleSave}
               disabled={totalChanges === 0 || updateMutation.isPending}
-              className={cn('gap-1.5', deletedIds.size > 0 && dirtyCount === 0 && 'bg-destructive hover:bg-destructive/90')}
+              className={cn(
+                'px-5 rounded-lg font-semibold shadow-md',
+                deletedIds.size > 0 && dirtyCount === 0 && 'bg-destructive hover:bg-destructive/90',
+              )}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {deletedIds.size > 0 && dirtyCount === 0

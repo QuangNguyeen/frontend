@@ -18,7 +18,7 @@ interface FullClozeViewProps {
   currentTime?: number;
   savedWords?: Set<string>;
   previewingWord?: string | null;
-  onWordClick?: (word: string, contextSentence: string, audioStartTime: number) => void;
+  onWordClick?: (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => void;
   onRetry?: () => void;
 }
 
@@ -148,7 +148,7 @@ function ClickableWord({
   clean: string;
   isSelected: boolean;
   isSaved: boolean;
-  onClick: () => void;
+  onClick: (anchorEl: HTMLElement) => void;
 }) {
   if (!clean) return <>{text}</>;
 
@@ -156,9 +156,9 @@ function ClickableWord({
     <span
       role="button"
       tabIndex={0}
-      onClick={onClick}
+      onClick={(e) => onClick(e.currentTarget)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e.currentTarget); }
       }}
       className={cn(
         'inline rounded-sm px-0.5 -mx-0.5 transition-colors duration-150 cursor-pointer',
@@ -200,7 +200,7 @@ function SegmentLine({
   advanceToNext: (fromBlankIdx: number) => void;
   savedWords: Set<string>;
   previewingWord: string | null;
-  onWordClick: (word: string, contextSentence: string, audioStartTime: number) => void;
+  onWordClick: (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => void;
 }) {
   const segResults = segment.tokens
     .filter((t) => t.is_blank && t.blank_index != null)
@@ -244,7 +244,7 @@ function SegmentLine({
                         clean={clean}
                         isSelected={previewingWord === clean}
                         isSaved={savedWords.has(clean)}
-                        onClick={() => onWordClick(clean, segmentPlainText(segment), segment.start_time)}
+                        onClick={(anchorEl) => onWordClick(clean, segmentPlainText(segment), segment.start_time, anchorEl)}
                       />
                     );
                   })}
@@ -267,9 +267,9 @@ function SegmentLine({
                 key={`b-${blankIdx}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => clean && onWordClick(clean, segmentPlainText(segment), segment.start_time)}
+                onClick={(e) => clean && onWordClick(clean, segmentPlainText(segment), segment.start_time, e.currentTarget)}
                 onKeyDown={(e) => {
-                  if ((e.key === 'Enter' || e.key === ' ') && clean) { e.preventDefault(); onWordClick(clean, segmentPlainText(segment), segment.start_time); }
+                  if ((e.key === 'Enter' || e.key === ' ') && clean) { e.preventDefault(); onWordClick(clean, segmentPlainText(segment), segment.start_time, e.currentTarget); }
                 }}
                 className={cn(
                   'inline-flex items-baseline cursor-pointer rounded-sm transition-all duration-150',

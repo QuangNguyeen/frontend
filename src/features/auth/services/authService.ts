@@ -38,6 +38,13 @@ export const authService = {
     return res.data;
   },
 
+  googleLogin: async (idToken: string): Promise<TokenResponse> => {
+    const res = await httpClient.post<TokenResponse>('/api/v1/auth/google', {
+      id_token: idToken,
+    });
+    return res.data;
+  },
+
   logout: async (): Promise<void> => {
     await httpClient.post('/api/v1/auth/logout');
   },

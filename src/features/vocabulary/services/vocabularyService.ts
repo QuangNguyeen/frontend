@@ -58,6 +58,7 @@ export const vocabularyService = {
   previewWord: async (word: string, context?: string): Promise<WordPreviewResponse> => {
     const res = await httpClient.get<WordPreviewResponse>('/api/v1/vocabulary/preview', {
       params: { word, context },
+      timeout: 30_000,
     });
     return res.data;
   },

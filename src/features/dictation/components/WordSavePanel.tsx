@@ -11,7 +11,7 @@ interface WordSavePanelProps {
   diffs?: WordDiffItem[];
   savedWords?: Set<string>;
   previewingWord?: string | null;
-  onWordClick?: (word: string, contextSentence: string, audioStartTime: number) => void;
+  onWordClick?: (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => void;
 }
 
 type TokenStatus = 'correct' | 'wrong' | 'missing' | 'masked' | 'plain';
@@ -172,12 +172,12 @@ export function WordSavePanel({
               <span
                 role={tok.clickable ? 'button' : undefined}
                 tabIndex={tok.clickable ? 0 : -1}
-                onClick={() => tok.clickable && !isSaved && onWordClick?.(tok.clean, text, audioStartTime)}
+                onClick={(e) => tok.clickable && !isSaved && onWordClick?.(tok.clean, text, audioStartTime, e.currentTarget)}
                 onKeyDown={(e) => {
                   if (!tok.clickable || isSaved) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onWordClick?.(tok.clean, text, audioStartTime);
+                    onWordClick?.(tok.clean, text, audioStartTime, e.currentTarget);
                   }
                 }}
                 title={isMasked ? 'Hidden — fix the error first' : undefined}

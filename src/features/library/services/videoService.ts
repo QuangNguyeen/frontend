@@ -78,6 +78,13 @@ export const videoService = {
     return res.data;
   },
 
+  getTranscriptionStatus: async (videoId: string): Promise<{ status: string; error: string | null }> => {
+    const res = await httpClient.get<{ status: string; error: string | null }>(
+      `/api/v1/videos/${videoId}/transcription-status`,
+    );
+    return res.data;
+  },
+
   getEditStatus: async (videoId: string): Promise<VideoEditStatusResponse> => {
     const res = await httpClient.get<VideoEditStatusResponse>(
       `/api/v1/videos/${videoId}/edit-status`,

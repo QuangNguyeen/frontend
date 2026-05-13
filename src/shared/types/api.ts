@@ -69,6 +69,8 @@ export interface VideoResponse {
   is_curated: boolean;
   is_active: boolean;
   is_auto_generated: boolean;
+  transcription_status: 'pending' | 'processing' | 'ready' | 'failed';
+  transcription_error: string | null;
   thumbnail_url: string;
   play_count: number;
   best_score: number | null;
@@ -243,6 +245,7 @@ export interface SubmitAnswerRequest {
   user_input: string;
   hints_used?: number;
   replay_count?: number;
+  skipped?: boolean;
 }
 
 export interface WordDiffItem {
@@ -258,6 +261,7 @@ export interface SentenceResultResponse {
   correct_count: number;
   wrong_count: number;
   missing_count: number;
+  is_skipped?: boolean;
   // Vocabulary saving context
   original_text: string;
   video_id: string;

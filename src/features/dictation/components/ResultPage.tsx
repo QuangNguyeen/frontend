@@ -109,7 +109,7 @@ function SentenceRow({ result, index }: { result: LocalResult; index: number }) 
 
       {expanded && (
         <div className="px-4 pb-4 pt-1 border-t border-border bg-muted/10 space-y-3">
-          {result.userInput ? (
+          {result.userInput && result.wordDiffs.length > 0 ? (
             <>
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Your answer</p>

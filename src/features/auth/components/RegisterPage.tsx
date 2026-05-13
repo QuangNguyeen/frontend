@@ -1,19 +1,30 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
-import { useRegister } from '../hooks/useAuth';
+import { useRegister, useGoogleLogin } from '../hooks/useAuth';
 import { extractApiError } from '@/shared/lib/httpClient';
 
 export function RegisterPage() {
   const navigate = useNavigate();
   const registerMutation = useRegister();
+  const googleLoginMutation = useGoogleLogin();
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  const handleGoogleSuccess = (response: CredentialResponse) => {
+    if (!response.credential) return;
+    setError('');
+    googleLoginMutation.mutate(response.credential, {
+      onSuccess: () => navigate('/library'),
+      onError: (err) => setError(extractApiError(err, 'Google sign-in failed')),
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +111,35 @@ export function RegisterPage() {
             Create Account
           </Button>
         </form>
+
+        {/* Divider */}
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+          </div>
+        </div>
+
+        {/* Google Sign-In */}
+        <div className="flex justify-center">
+          {googleLoginMutation.isPending ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Signing in with Google...
+            </div>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Google sign-in failed')}
+              width="350"
+              text="signup_with"
+              shape="rectangular"
+              theme="outline"
+            />
+          )}
+        </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
           Already have an account?{' '}

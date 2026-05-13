@@ -55,6 +55,26 @@ export function useRegister() {
 }
 
 /**
+ * useGoogleLogin — handles the Google OAuth login flow:
+ * POST /auth/google → store token → GET /auth/me → update auth store.
+ */
+export function useGoogleLogin() {
+  const storeLogin = useAuthStore((s) => s.login);
+
+  return useMutation({
+    mutationFn: async (idToken: string) => {
+      const tokens = await authService.googleLogin(idToken);
+      localStorage.setItem('access_token', tokens.access_token);
+      const user = await authService.getMe();
+      return { tokens, user };
+    },
+    onSuccess: ({ tokens, user }) => {
+      storeLogin(user, tokens.access_token, tokens.refresh_token);
+    },
+  });
+}
+
+/**
  * useLogout — clears auth state and tokens from storage.
  */
 export function useLogout() {
