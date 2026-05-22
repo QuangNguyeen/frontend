@@ -8,20 +8,6 @@ import { cn } from '@/lib/utils';
 import { useDueCards, useReviewWord } from '../hooks/useVocabulary';
 import type { FlashCardResponse } from '@/shared/types/api';
 
-const POS_COLORS: Record<string, string> = {
-  noun: 'border-blue-400/50 bg-blue-500/10 text-blue-500',
-  verb: 'border-rose-400/50 bg-rose-500/10 text-rose-500',
-  adjective: 'border-emerald-400/50 bg-emerald-500/10 text-emerald-500',
-  adverb: 'border-violet-400/50 bg-violet-500/10 text-violet-500',
-  preposition: 'border-amber-400/50 bg-amber-500/10 text-amber-500',
-  conjunction: 'border-cyan-400/50 bg-cyan-500/10 text-cyan-500',
-  interjection: 'border-pink-400/50 bg-pink-500/10 text-pink-500',
-};
-
-function posColor(pos: string): string {
-  return POS_COLORS[pos.toLowerCase()] ?? 'border-border bg-muted/50 text-muted-foreground';
-}
-
 // ─── Grading palette ─────────────────────────────────────────────────────────
 
 const GRADES = [
@@ -94,25 +80,18 @@ function FlashCard({
 
   return (
     <div className="w-full max-w-lg mx-auto">
-      <div className="rounded-3xl border border-border bg-card shadow-xl px-8 py-10 flex flex-col items-center gap-6 min-h-[340px]">
+      <div className="rounded-2xl border border-border bg-card shadow-xl px-6 py-8 flex flex-col items-center gap-5 min-h-[300px]">
         <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
           What does this word mean?
         </span>
 
-        <h2 className="text-4xl sm:text-5xl font-bold text-foreground tracking-tight text-center">
+        <h2 className="text-3xl sm:text-4xl font-semibold text-foreground tracking-tight text-center">
           {card.word}
         </h2>
 
-        <div className="flex items-center gap-2">
-          {phonetic && (
-            <p className="text-base text-muted-foreground font-mono italic">{phonetic}</p>
-          )}
-          {card.part_of_speech && (
-            <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-medium ${posColor(card.part_of_speech)}`}>
-              {card.part_of_speech}
-            </span>
-          )}
-        </div>
+        {phonetic && (
+          <p className="text-base text-muted-foreground font-mono italic">{phonetic}</p>
+        )}
 
         {audio_url && (
           <button
@@ -120,7 +99,7 @@ function FlashCard({
             className="p-2 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
             title="Play pronunciation"
           >
-            <Volume2 className="h-5 w-5" />
+            <Volume2 className="size-5" />
           </button>
         )}
 
@@ -131,7 +110,7 @@ function FlashCard({
         )}
 
         {isFlipped && (
-          <div className="w-full flex flex-col items-center gap-4 pt-4 border-t border-border animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="w-full flex flex-col items-center gap-3 pt-3 border-t border-border animate-in fade-in slide-in-from-bottom-2 duration-200">
             {card.meaning ? (
               <p className="text-lg text-center text-primary font-semibold leading-snug max-w-md">
                 {card.meaning}
@@ -157,9 +136,9 @@ function FlashCard({
             <Button
               size="lg"
               onClick={onFlip}
-              className="w-full max-w-xs rounded-2xl gap-2 h-12 text-base shadow-md"
+              className="w-full max-w-xs rounded-xl gap-2 h-10 text-sm shadow-md"
             >
-              <Eye className="h-4 w-4" />
+              <Eye className="size-4" />
               Show Answer
             </Button>
             <span className="text-[11px] text-muted-foreground">
@@ -236,7 +215,11 @@ export function FlashCardPage() {
     [currentCard, isGrading, reviewMutation],
   );
 
-  // Keyboard shortcuts: Space to flip, 1–4 to grade
+  const handleFlipRef = useRef(handleFlip);
+  const handleGradeRef = useRef(handleGrade);
+  useEffect(() => { handleFlipRef.current = handleFlip; }, [handleFlip]);
+  useEffect(() => { handleGradeRef.current = handleGrade; }, [handleGrade]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
@@ -244,7 +227,7 @@ export function FlashCardPage() {
 
       if (e.code === 'Space') {
         e.preventDefault();
-        handleFlip();
+        handleFlipRef.current();
         return;
       }
 
@@ -252,21 +235,21 @@ export function FlashCardPage() {
         const key = e.key;
         if (key >= '1' && key <= '4') {
           e.preventDefault();
-          handleGrade(Number(key));
+          handleGradeRef.current(Number(key));
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleFlip, handleGrade, isFlipped, isGrading]);
+  }, [isFlipped, isGrading]);
 
   // ── Loading ─────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-full gap-2 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        <span className="text-sm">Loading flashcards...</span>
+        <Loader2 className="size-5 animate-spin" />
+        <span className="text-sm">Loading flashcards&hellip;</span>
       </div>
     );
   }
@@ -286,11 +269,11 @@ export function FlashCardPage() {
 
   if (isEmpty || isFinished) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-full gap-5 px-6 text-center">
-        <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
-          <PartyPopper className="h-8 w-8 text-green-600" />
+      <div className="flex flex-col items-center justify-center min-h-full gap-4 px-6 text-center">
+        <div className="size-14 rounded-full bg-green-100 flex items-center justify-center">
+          <PartyPopper className="size-7 text-green-600" />
         </div>
-        <h2 className="text-xl font-bold">
+        <h2 className="text-lg font-semibold">
           {isFinished ? 'Great job!' : 'All caught up!'}
         </h2>
         <p className="text-sm text-muted-foreground max-w-xs">
@@ -300,7 +283,7 @@ export function FlashCardPage() {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-2">
           <Button onClick={() => navigate('/vocabulary')} className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="size-4" />
             Back to Vocabulary
           </Button>
           {isFinished && (
@@ -312,7 +295,7 @@ export function FlashCardPage() {
                 refetch();
               }}
             >
-              <RotateCcw className="h-4 w-4 mr-1.5" />
+              <RotateCcw className="size-4 mr-1.5" />
               Review more
             </Button>
           )}

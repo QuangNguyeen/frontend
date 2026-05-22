@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { useLogin, useGoogleLogin } from '../hooks/useAuth';
 import { extractApiError } from '@/shared/lib/httpClient';
 
@@ -40,55 +43,55 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
+      <Card className="w-full max-w-sm p-6">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center mb-3">
-            <Headphones className="h-6 w-6 text-primary-foreground" />
+        <div className="flex flex-col items-center mb-5">
+          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center mb-2">
+            <Headphones className="h-4 w-4 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold">DictaLearn</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in to continue</p>
+          <h1 className="text-lg font-bold">DictaLearn</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Sign in to continue</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {error && (
-            <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg">
+            <div className="bg-destructive/10 border border-destructive/30 text-destructive text-xs px-3 py-2.5 rounded-lg">
               {error}
             </div>
           )}
 
-          <div>
-            <label className="text-sm font-medium block mb-1.5">Email</label>
-            <input
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
               type="email"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
-              className="w-full px-4 py-2.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium block mb-1.5">Password</label>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Password</Label>
             <div className="relative">
-              <input
+              <Input
+                id="password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-2.5 pr-10 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                className="pr-9"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
             </div>
           </div>
@@ -100,27 +103,26 @@ export function LoginPage() {
         </form>
 
         {/* Divider */}
-        <div className="relative my-6">
+        <div className="relative my-5">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
           </div>
         </div>
 
-        {/* Google Sign-In */}
         <div className="flex justify-center">
           {googleLoginMutation.isPending ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Signing in with Google...
             </div>
           ) : (
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
               onError={() => setError('Google sign-in failed')}
-              width="350"
+              width="320"
               text="signin_with"
               shape="rectangular"
               theme="outline"
@@ -128,13 +130,13 @@ export function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
+        <p className="text-center text-xs text-muted-foreground mt-5">
           Don't have an account?{' '}
           <Link to="/register" className="text-foreground font-medium hover:underline">
             Sign up
           </Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

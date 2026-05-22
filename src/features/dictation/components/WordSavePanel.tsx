@@ -26,6 +26,7 @@ interface Token {
 }
 
 const DIFFICULTY_THRESHOLD = 0.6;
+const EMPTY_DIFFICULTY: Record<string, number> = {};
 
 function cleanForSave(word: string): string {
   return word.toLowerCase().replace(/[^\p{L}\p{N}'\-]/gu, '');
@@ -45,7 +46,8 @@ function tokensFromDiffs(
   difficulty: Record<string, number>,
 ): Token[] {
   const flow = diffs.filter((d) => d.status !== 'extra');
-  const firstErr = flow.findIndex((d) => d.status !== 'correct');
+  const allMissing = flow.length > 0 && flow.every((d) => d.status === 'missing');
+  const firstErr = allMissing ? -1 : flow.findIndex((d) => d.status !== 'correct');
 
   return flow.map((d, i): Token => {
     // The canonical expected word for this slot
@@ -57,6 +59,7 @@ function tokensFromDiffs(
     const isHard = (difficulty[clean] ?? 0) >= DIFFICULTY_THRESHOLD;
 
     // Progressive reveal: mask everything after the first error
+    // (skipped sentences have all-missing diffs — show them fully)
     if (firstErr !== -1 && i > firstErr) {
       return {
         display: '*'.repeat(Math.max(3, wordLen(expectedWord))),
@@ -80,23 +83,26 @@ function tokensFromDiffs(
 
 /** Fallback: tokenize a plain sentence without diff metadata. */
 function tokensFromText(text: string, difficulty: Record<string, number>): Token[] {
-  return text.split(/\s+/).filter(Boolean).map((word): Token => {
+  const result: Token[] = [];
+  for (const word of text.split(/\s+/)) {
+    if (!word) continue;
     const clean = cleanForSave(word);
-    return {
+    result.push({
       display: word,
       clean,
       status: 'plain',
       clickable: !!clean,
       isHard: (difficulty[clean] ?? 0) >= DIFFICULTY_THRESHOLD,
-    };
-  });
+    });
+  }
+  return result;
 }
 
 export function WordSavePanel({
   text,
   videoId,
   audioStartTime,
-  wordDifficulty = {},
+  wordDifficulty = EMPTY_DIFFICULTY,
   diffs,
   savedWords: savedWordsProp,
   previewingWord = null,
@@ -114,28 +120,37 @@ export function WordSavePanel({
   const hasVisibleError = tokens.some(
     (t) => t.status === 'wrong' || t.status === 'missing',
   );
+  const allMissing = tokens.length > 0 && tokens.every((t) => t.status === 'missing');
   const containerClass = cn(
-    'rounded-2xl px-5 py-5 border transition-colors',
-    hasVisibleError
-      ? 'bg-red-50/40 border-red-200'
-      : 'bg-green-50/50 border-green-200',
+    'rounded-xl px-4 py-4 border transition-colors',
+    allMissing
+      ? 'bg-amber-50/40 border-amber-200'
+      : hasVisibleError
+        ? 'bg-red-50/40 border-red-200'
+        : 'bg-green-50/50 border-green-200',
   );
   const labelText = diffs
-    ? hasVisibleError
-      ? 'Your Attempt'
-      : 'Perfect Match'
+    ? allMissing
+      ? 'Answer (Skipped)'
+      : hasVisibleError
+        ? 'Your Attempt'
+        : 'Perfect Match'
     : 'Answer';
-  const labelClass = hasVisibleError ? 'text-red-700' : 'text-green-700';
+  const labelClass = allMissing
+    ? 'text-amber-700'
+    : hasVisibleError
+      ? 'text-red-700'
+      : 'text-green-700';
 
   return (
     <div className={containerClass}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex items-start justify-between gap-3 mb-2">
         <p className={cn('text-xs font-semibold uppercase tracking-wide', labelClass)}>
           {labelText}
         </p>
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Lightbulb className="h-3 w-3 text-amber-500 shrink-0" />
+          <Lightbulb className="size-3 text-amber-500 shrink-0" />
           Click any word to save to flashcards
         </p>
       </div>
@@ -168,18 +183,20 @@ export function WordSavePanel({
                 : 'cursor-not-allowed';
 
           return (
-            <span key={i}>
+            <span key={`${i}:${tok.display}`}>
               <span
-                role={tok.clickable ? 'button' : undefined}
-                tabIndex={tok.clickable ? 0 : -1}
-                onClick={(e) => tok.clickable && !isSaved && onWordClick?.(tok.clean, text, audioStartTime, e.currentTarget)}
-                onKeyDown={(e) => {
-                  if (!tok.clickable || isSaved) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onWordClick?.(tok.clean, text, audioStartTime, e.currentTarget);
-                  }
-                }}
+                {...(tok.clickable ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  onClick: (e: React.MouseEvent<HTMLSpanElement>) => !isSaved && onWordClick?.(tok.clean, text, audioStartTime, e.currentTarget),
+                  onKeyDown: (e: React.KeyboardEvent<HTMLSpanElement>) => {
+                    if (isSaved) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onWordClick?.(tok.clean, text, audioStartTime, e.currentTarget);
+                    }
+                  },
+                } : {})}
                 title={isMasked ? 'Hidden — fix the error first' : undefined}
                 className={cn(
                   'inline-block rounded-sm px-0.5 -mx-0.5 transition-all duration-200',
@@ -187,7 +204,7 @@ export function WordSavePanel({
                   (isSaved || isSelected) ? interactiveClass : cn(statusClass, interactiveClass),
                 )}
               >
-                {isSaved && <Check className="inline h-3 w-3 mr-0.5 -mt-0.5 text-green-600" />}
+                {isSaved && <Check className="inline size-3 mr-0.5 -mt-0.5 text-green-600" />}
                 {tok.display}
               </span>{' '}
             </span>

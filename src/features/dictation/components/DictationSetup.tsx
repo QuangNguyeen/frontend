@@ -95,39 +95,39 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
   return (
     <div className="min-h-full bg-background">
       {/* Top bar */}
-      <header className="border-b border-border bg-card px-8 sm:px-14 py-6 flex items-center gap-4">
+      <header className="border-b border-border bg-card px-6 sm:px-10 py-4 flex items-center gap-3">
         <button
           onClick={() => navigate('/library')}
-          className="inline-flex items-center justify-center h-10 w-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
           aria-label="Back to library"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="min-w-0">
-          <p className="text-xs font-medium tracking-[0.1em] uppercase text-muted-foreground">
+          <p className="text-[11px] font-medium tracking-[0.1em] uppercase text-muted-foreground">
             Practice setup
           </p>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight truncate mt-0.5">
+          <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate mt-0.5">
             {video.title}
           </h1>
         </div>
       </header>
 
-      <div className="px-8 sm:px-14 py-12 max-w-[1080px] space-y-12 dash-enter">
+      <div className="px-6 sm:px-10 py-8 max-w-[1080px] space-y-8 dash-enter">
         {/* Smart warning — Von Restorff focal point */}
         {video.is_auto_generated && (
           <section
             role="alert"
-            className="flex items-start gap-4 rounded-2xl border border-[color:var(--accent-amber)]/40 bg-[color:var(--accent-amber)]/12 p-6 sm:p-7 shadow-soft"
+            className="flex items-start gap-3 rounded-xl border border-[color:var(--accent-amber)]/40 bg-[color:var(--accent-amber)]/12 p-4 sm:p-5 shadow-soft"
           >
-            <span className="h-11 w-11 rounded-xl bg-[color:var(--accent-amber)] text-[color:var(--accent-amber-foreground)] flex items-center justify-center shrink-0 shadow-soft">
-              <AlertTriangle className="h-5 w-5" />
+            <span className="h-9 w-9 rounded-lg bg-[color:var(--accent-amber)] text-[color:var(--accent-amber-foreground)] flex items-center justify-center shrink-0 shadow-soft">
+              <AlertTriangle className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-base font-semibold leading-snug">
+              <p className="text-sm font-semibold leading-snug">
                 This video uses auto-generated subtitles.
               </p>
-              <p className="text-base text-foreground/85 leading-relaxed mt-1.5">
+              <p className="text-sm text-foreground/85 leading-relaxed mt-1">
                 They lack punctuation and can be frustrating to type verbatim. We highly recommend{' '}
                 <span className="font-semibold">Paragraph cloze</span> mode for a smoother session.
               </p>
@@ -137,10 +137,10 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
 
         {/* Mode selector */}
         <section>
-          <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground mb-5">
+          <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground mb-3">
             Choose your practice mode
           </p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {MODES.map((m) => {
               const selected = mode === m.value;
               const recommended = video.is_auto_generated && m.value === 'cloze';
@@ -151,17 +151,17 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
                   onClick={() => setMode(m.value)}
                   aria-pressed={selected}
                   className={cn(
-                    'group text-left p-7 sm:p-8 rounded-2xl border bg-card transition-all duration-150 ease-out',
+                    'group text-left p-5 sm:p-6 rounded-xl border bg-card transition-all duration-150 ease-out',
                     'hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
                     selected
                       ? 'border-foreground shadow-soft-lg'
                       : 'border-border shadow-soft hover:border-foreground/40',
                   )}
                 >
-                  <div className="flex items-start justify-between gap-4 mb-5">
+                  <div className="flex items-start justify-between gap-4 mb-3">
                     <span
                       className={cn(
-                        'h-12 w-12 rounded-xl flex items-center justify-center transition-colors',
+                        'h-10 w-10 rounded-lg flex items-center justify-center transition-colors',
                         selected
                           ? 'bg-foreground text-background'
                           : 'bg-muted text-foreground group-hover:bg-muted/80',
@@ -175,12 +175,12 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
                       </span>
                     )}
                   </div>
-                  <h3 className="text-lg font-semibold tracking-tight">{m.title}</h3>
-                  <p className="text-base text-muted-foreground mt-1.5">{m.tagline}</p>
-                  <p className="text-sm text-foreground/80 leading-relaxed mt-4">
+                  <h3 className="text-base font-semibold tracking-tight">{m.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{m.tagline}</p>
+                  <p className="text-xs text-foreground/80 leading-relaxed mt-3">
                     {m.description}
                   </p>
-                  <div className="mt-5 flex items-center justify-between">
+                  <div className="mt-3 flex items-center justify-between">
                     <p className="text-xs text-muted-foreground tracking-wide">
                       {m.bestFor}
                     </p>
@@ -205,10 +205,10 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
         {/* Difficulty selector (cloze only) */}
         {mode === 'cloze' && (
           <section className="dash-enter" style={{ animationDelay: '80ms' }}>
-            <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground mb-5">
+            <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground mb-3">
               Difficulty level
             </p>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               {DIFFICULTIES.map((d) => {
                 const selected = difficulty === d.value;
                 return (
@@ -218,7 +218,7 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
                     onClick={() => setDifficulty(d.value)}
                     aria-pressed={selected}
                     className={cn(
-                      'text-left p-5 sm:p-6 rounded-2xl border bg-card transition-all duration-150 ease-out',
+                      'text-left p-4 sm:p-5 rounded-xl border bg-card transition-all duration-150 ease-out',
                       'hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
                       selected
                         ? `${d.color.borderSelected} shadow-soft-lg`
@@ -258,7 +258,7 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
           <button
             type="button"
             onClick={() => onStart(mode, mode === 'cloze' ? difficulty : undefined)}
-            className="inline-flex items-center justify-center gap-3 h-14 px-8 rounded-xl text-base font-semibold bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
+            className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-lg text-sm font-semibold bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
           >
             <PlayCircle className="h-5 w-5" />
             Start practising

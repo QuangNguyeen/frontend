@@ -276,7 +276,7 @@ export function ClozeView({ sessionId, onPlaySegment, onCompleted, onProgress, o
   }
   if (isError || !chunks.length) {
     return (
-      <div className="p-8 text-base text-destructive">
+      <div className="p-5 text-sm text-destructive">
         Could not load cloze chunks for this session.
       </div>
     );
@@ -285,29 +285,29 @@ export function ClozeView({ sessionId, onPlaySegment, onCompleted, onProgress, o
   if (completed) {
     return (
       <section
-        className="bg-card border border-border rounded-2xl shadow-soft p-10 sm:p-12 text-center dash-enter"
+        className="bg-card border border-border rounded-xl shadow-soft p-6 sm:p-8 text-center dash-enter"
         style={{ animationDelay: '0ms' }}
       >
-        <div className="h-16 w-16 mx-auto rounded-full bg-[color:var(--accent-emerald)]/15 flex items-center justify-center mb-6">
-          <Trophy className="h-7 w-7 text-[color:var(--accent-emerald)]" />
+        <div className="h-12 w-12 mx-auto rounded-full bg-[color:var(--accent-emerald)]/15 flex items-center justify-center mb-4">
+          <Trophy className="h-5 w-5 text-[color:var(--accent-emerald)]" />
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight">Session complete</h2>
-        <p className="text-7xl font-semibold tabular-nums mt-8 text-[color:var(--accent-emerald)] leading-none">
+        <h2 className="text-xl font-semibold tracking-tight">Session complete</h2>
+        <p className="text-5xl font-semibold tabular-nums mt-5 text-[color:var(--accent-emerald)] leading-none">
           {summary.score}%
         </p>
-        <div className="mt-8 inline-flex items-center gap-6 text-base">
-          <span className="inline-flex items-center gap-2 text-[color:var(--accent-emerald)] font-semibold">
-            <Check className="h-5 w-5" />
+        <div className="mt-5 inline-flex items-center gap-5 text-sm">
+          <span className="inline-flex items-center gap-1.5 text-[color:var(--accent-emerald)] font-semibold">
+            <Check className="h-4 w-4" />
             {summary.correctBlanks} correct
           </span>
           <span className="text-muted-foreground">·</span>
-          <span className="inline-flex items-center gap-2 text-destructive font-semibold">
-            <X className="h-5 w-5" />
+          <span className="inline-flex items-center gap-1.5 text-destructive font-semibold">
+            <X className="h-4 w-4" />
             {summary.wrongBlanks} wrong
           </span>
         </div>
-        <p className="mt-8 text-base text-foreground/85 max-w-md mx-auto leading-relaxed inline-flex items-start gap-2 text-left">
-          <Sparkles className="h-4 w-4 mt-1 shrink-0 text-[color:var(--accent-amber)]" />
+        <p className="mt-5 text-sm text-foreground/85 max-w-md mx-auto leading-relaxed inline-flex items-start gap-2 text-left">
+          <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[color:var(--accent-amber)]" />
           <span>{pickMotivation(summary.score)}</span>
         </p>
       </section>
@@ -315,13 +315,13 @@ export function ClozeView({ sessionId, onPlaySegment, onCompleted, onProgress, o
   }
 
   return (
-    <section className="space-y-8 dash-enter" style={{ animationDelay: '0ms' }}>
+    <section className="space-y-5 dash-enter" style={{ animationDelay: '0ms' }}>
       {/* Play chunk + timestamp */}
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-2">
         <button
           type="button"
           onClick={handlePlayChunk}
-          className="inline-flex items-center gap-2 h-12 px-6 rounded-xl border border-border bg-card text-base font-medium hover:border-foreground/60 hover:-translate-y-px shadow-soft transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex items-center gap-2 h-10 px-5 rounded-lg border border-border bg-card text-sm font-medium hover:border-foreground/60 hover:-translate-y-px shadow-soft transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Play className="h-4 w-4 fill-current" /> Play chunk
         </button>
@@ -338,7 +338,7 @@ export function ClozeView({ sessionId, onPlaySegment, onCompleted, onProgress, o
       </p>
 
       {/* Paragraph card */}
-      <div className="bg-card border border-border rounded-2xl shadow-soft px-8 sm:px-12 py-10 sm:py-12">
+      <div className="bg-card border border-border rounded-xl shadow-soft px-5 sm:px-8 py-6 sm:py-8">
         <ChunkParagraph
           chunk={chunk}
           answers={currentAnswers}

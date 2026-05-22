@@ -60,12 +60,12 @@ function WordCard({
   const isDue = review === 'Due now' || review === 'Today';
 
   return (
-    <div className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200 hover:border-primary/20 flex flex-col">
+    <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-sm transition-all duration-200 hover:border-primary/20 flex flex-col">
       {/* Header */}
-      <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-2">
+      <div className="px-[var(--card-padding)] pt-[var(--card-padding)] pb-2 flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
           <div className="flex flex-col min-w-0">
-            <h3 className="text-xl font-bold text-primary leading-tight">{word.word}</h3>
+            <h3 className="text-lg font-bold text-primary leading-tight">{word.word}</h3>
             {word.phonetic && (
               <span className="text-sm text-muted-foreground font-mono italic">{word.phonetic}</span>
             )}
@@ -120,7 +120,7 @@ function WordCard({
       </div>
 
       {/* Body */}
-      <div className="px-5 pb-4 flex flex-col gap-2.5 flex-1">
+      <div className="px-[var(--card-padding)] pb-[var(--card-padding)] flex flex-col gap-2 flex-1">
         {word.context_sentence && (
           <p className="text-sm text-muted-foreground leading-relaxed italic">
             &ldquo;{highlightWord(word.context_sentence, word.word)}&rdquo;
@@ -147,7 +147,7 @@ function WordCard({
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
+      <div className="px-[var(--card-padding)] py-2 border-t border-border bg-muted/20 flex items-center justify-between">
         <span className={cn(
           'text-xs flex items-center gap-1',
           isDue ? 'text-amber-600 font-medium' : 'text-muted-foreground',
@@ -301,11 +301,11 @@ export function VocabularyPage() {
     <div className="min-h-full">
       {/* Header */}
       <div className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-10">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="px-[var(--page-px)] py-2.5">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <h1 className="text-xl font-semibold">Vocabulary</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-lg font-semibold">Vocabulary</h1>
+              <p className="text-xs text-muted-foreground">
                 Your saved words and spaced-repetition progress
               </p>
             </div>
@@ -329,7 +329,7 @@ export function VocabularyPage() {
                 placeholder="Search words..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-10 pl-9 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                className="w-full h-9 pl-9 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
               />
             </div>
             <Button
@@ -346,7 +346,7 @@ export function VocabularyPage() {
 
       {/* Due-review banner */}
       {totalDue > 0 && (
-        <div className="mx-6 mt-4 flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5">
+        <div className="mx-[var(--page-px)] mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-2.5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
               <GraduationCap className="h-5 w-5 text-amber-600" />
@@ -366,35 +366,31 @@ export function VocabularyPage() {
       )}
 
       {/* Content */}
-      <div className="px-6 py-6">
+      <div className="px-[var(--page-px)] py-[var(--page-py)]">
         {words.length === 0 ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-              <BookOpen className="h-7 w-7 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center mb-2">
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
             </div>
-            <h2 className="font-semibold text-lg mb-2">No saved words yet</h2>
-            <p className="text-sm text-muted-foreground max-w-sm mb-6">
+            <h2 className="font-semibold text-sm mb-1">No saved words yet</h2>
+            <p className="text-xs text-muted-foreground max-w-sm mb-3">
               Practice dictation and click on any word in the results to save it here.
-              Build your vocabulary one word at a time!
             </p>
-            <Button onClick={() => navigate('/library')} className="gap-1.5">
-              <BookOpen className="h-4 w-4" />
+            <Button size="sm" onClick={() => navigate('/library')} className="gap-1.5">
+              <BookOpen className="h-3.5 w-3.5" />
               Go to Library
             </Button>
           </div>
         ) : filtered.length === 0 ? (
-          /* No search results */
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Search className="h-5 w-5 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center mb-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <p className="font-medium text-sm">No words match &ldquo;{search}&rdquo;</p>
-            <p className="text-muted-foreground text-sm mt-1">Try a different search term</p>
+            <p className="text-muted-foreground text-xs mt-0.5">Try a different search term</p>
           </div>
         ) : (
-          /* Word grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map((w) => (
               <WordCard
                 key={w.id}

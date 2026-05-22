@@ -165,43 +165,43 @@ export function ResultPage() {
     <div className="min-h-full bg-background">
       {/* Hero */}
       <div className="bg-gradient-to-br from-primary/5 to-primary/10 border-b border-border">
-        <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col items-center text-center">
-          <Trophy className="h-10 w-10 text-primary mb-3" />
-          <h1 className="text-2xl font-bold mb-1">Session Complete!</h1>
-          <p className="text-sm text-muted-foreground mb-6 max-w-xs">{video.title}</p>
+        <div className="max-w-2xl mx-auto px-6 py-8 flex flex-col items-center text-center">
+          <Trophy className="h-8 w-8 text-primary mb-2" />
+          <h1 className="text-xl font-bold mb-1">Session Complete!</h1>
+          <p className="text-sm text-muted-foreground mb-4 max-w-xs">{video.title}</p>
 
           {/* Score */}
           <div
             className={cn(
-              'h-24 w-24 rounded-full border-4 flex flex-col items-center justify-center mb-6 shadow-lg',
+              'h-20 w-20 rounded-full border-4 flex flex-col items-center justify-center mb-5 shadow-lg',
               grade.bg,
               'border-current'
             )}
           >
-            <span className={cn('text-3xl font-black leading-none', grade.color)}>
+            <span className={cn('text-2xl font-black leading-none', grade.color)}>
               {grade.label}
             </span>
-            <span className={cn('text-sm font-semibold', grade.color)}>{totalScore}%</span>
+            <span className={cn('text-xs font-semibold', grade.color)}>{totalScore}%</span>
           </div>
 
           {/* Quick stats */}
-          <div className="grid grid-cols-3 gap-4 w-full max-w-xs">
-            <div className="bg-card border border-border rounded-lg p-3 text-center">
-              <p className="text-xl font-bold text-green-600">{perfectCount}</p>
+          <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+            <div className="bg-card border border-border rounded-lg p-2.5 text-center">
+              <p className="text-lg font-bold text-green-600">{perfectCount}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Perfect</p>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3 text-center">
-              <p className="text-xl font-bold">{results.length}</p>
+            <div className="bg-card border border-border rounded-lg p-2.5 text-center">
+              <p className="text-lg font-bold">{results.length}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Total</p>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3 text-center">
-              <p className="text-xl font-bold text-red-500">{poorCount}</p>
+            <div className="bg-card border border-border rounded-lg p-2.5 text-center">
+              <p className="text-lg font-bold text-red-500">{poorCount}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Struggled</p>
             </div>
           </div>
 
           {/* Stars */}
-          <div className="flex gap-1 mt-5">
+          <div className="flex gap-1 mt-3">
             {Array.from({ length: 5 }).map((_, i) => (
               <Star
                 key={i}
@@ -218,7 +218,7 @@ export function ResultPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-2xl mx-auto px-6 py-5 space-y-5">
         {/* CTA buttons */}
         <div className="flex gap-3">
           <Button

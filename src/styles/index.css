@@ -1,6 +1,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
@@ -85,7 +85,7 @@
 }
 
 @theme inline {
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif;
     --color-accent-emerald: var(--accent-emerald);
     --color-accent-emerald-foreground: var(--accent-emerald-foreground);
     --color-accent-amber: var(--accent-amber);
@@ -129,33 +129,49 @@
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
 
-    /* Type scale — Major Third (1.25). Body anchored at 16px. */
-    --text-xs: 0.75rem;              /* 12px — micro/meta */
+    /* Type scale — tighter, app-density optimized */
+    --text-xs: 0.75rem;              /* 12px — labels, badges, metadata */
     --text-xs--line-height: 1.5;
-    --text-sm: 0.875rem;             /* 14px — secondary */
+    --text-sm: 0.8125rem;            /* 13px — secondary text, captions */
     --text-sm--line-height: 1.55;
-    --text-base: 1rem;               /* 16px — body */
-    --text-base--line-height: 1.625; /* comfortable reading */
-    --text-lg: 1.25rem;              /* 20px — lead/H5 */
+    --text-base: 0.875rem;           /* 14px — body text, inputs, buttons */
+    --text-base--line-height: 1.625;
+    --text-lg: 1rem;                 /* 16px — card titles, section headers */
     --text-lg--line-height: 1.5;
-    --text-xl: 1.5625rem;            /* 25px — H4 */
+    --text-xl: 1.25rem;              /* 20px — page titles */
     --text-xl--line-height: 1.4;
-    --text-2xl: 1.953rem;            /* 31.25px — H3 */
+    --text-2xl: 1.5rem;              /* 24px — main headings */
     --text-2xl--line-height: 1.25;
-    --text-3xl: 2.441rem;            /* 39px — H2 */
+    --text-3xl: 1.875rem;            /* 30px — hero text */
     --text-3xl--line-height: 1.15;
-    --text-4xl: 3.052rem;            /* 48.8px — H1 */
+    --text-4xl: 2.25rem;             /* 36px — display */
     --text-4xl--line-height: 1.08;
-    --text-5xl: 3.815rem;            /* 61px — display */
+    --text-5xl: 3rem;                /* 48px — display lg */
     --text-5xl--line-height: 1.03;
-    --text-6xl: 4.768rem;            /* 76.3px — display lg */
+    --text-6xl: 3.75rem;             /* 60px — display xl */
     --text-6xl--line-height: 1;
-    --text-7xl: 5.96rem;             /* 95.4px — hero */
+    --text-7xl: 4.5rem;              /* 72px — hero */
     --text-7xl--line-height: 0.95;
+
+    /* Layout spacing — compact, consistent across pages */
+    --page-px: 1.25rem;
+    --page-py: 1rem;
+    --section-gap: 0.75rem;
+    --card-padding: 0.75rem;
 
     /* Soft elevation — premium depth without heavy shadows */
     --shadow-soft: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 2px 6px -1px oklch(0 0 0 / 0.03);
     --shadow-soft-lg: 0 2px 4px 0 oklch(0 0 0 / 0.04), 0 8px 24px -4px oklch(0 0 0 / 0.05);
+
+    /* Semantic badge colors */
+    --badge-success: oklch(0.696 0.17 162.48);
+    --badge-success-foreground: oklch(0.985 0 0);
+    --badge-warning: oklch(0.77 0.162 70.08);
+    --badge-warning-foreground: oklch(0.205 0 0);
+    --badge-danger: oklch(0.577 0.245 27.325);
+    --badge-danger-foreground: oklch(0.985 0 0);
+    --badge-info: oklch(0.623 0.214 259.815);
+    --badge-info-foreground: oklch(0.985 0 0);
 }
 
 @layer base {
@@ -185,4 +201,10 @@
 .dash-bar {
   transform-origin: bottom;
   animation: dash-bar-rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes indeterminate {
+  0% { transform: scaleX(0) translateX(-100%); }
+  50% { transform: scaleX(0.6) translateX(0%); }
+  100% { transform: scaleX(0) translateX(100%); }
 }

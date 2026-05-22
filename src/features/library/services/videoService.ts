@@ -20,8 +20,11 @@ export const videoService = {
     level?: string;
     curated?: boolean;
   }): Promise<VideoResponse[]> => {
-    const res = await httpClient.get<VideoResponse[]>('/api/v1/videos', { params });
-    return res.data;
+    const res = await httpClient.get('/api/v1/videos', { params });
+    const data = res.data;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    return [];
   },
 
   get: async (videoId: string): Promise<VideoResponse> => {

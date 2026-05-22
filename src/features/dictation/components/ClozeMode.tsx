@@ -1,6 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, startTransition } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft, Square, RotateCcw, SkipForward, ChevronDown,
+} from 'lucide-react';
 import { YoutubePlayer } from './YoutubePlayer';
 import type { YoutubePlayerHandle } from './YoutubePlayer';
 import { FullClozeView } from './FullClozeView';
@@ -8,8 +10,11 @@ import { WordPopover } from './WordPopover';
 import { vocabularyService } from '@/features/vocabulary/services/vocabularyService';
 import { vocabularyKeys } from '@/features/vocabulary/hooks/useVocabulary';
 import { useQueryClient } from '@tanstack/react-query';
+import { useClozeFullData } from '../hooks/useDictation';
+import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
 import { cleanForSave } from '../hooks/useWordSave';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { ClozeDifficulty, WordPreviewResponse } from '@/shared/types/api';
 
 interface ClozeModeProps {
@@ -21,6 +26,8 @@ interface ClozeModeProps {
   onCompleted: () => void;
 }
 
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 export function ClozeMode({
   video,
   videoId,
@@ -31,6 +38,7 @@ export function ClozeMode({
 }: ClozeModeProps) {
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [previewData, setPreviewData] = useState<{ word: string; context: string; startTime: number } | null>(null);
   const [previewResult, setPreviewResult] = useState<WordPreviewResponse | null>(null);
@@ -38,9 +46,32 @@ export function ClozeMode({
   const [isSavingWord, setIsSavingWord] = useState(false);
   const previewRequestId = useRef(0);
   const [popoverAnchorEl, setPopoverAnchorEl] = useState<HTMLElement | null>(null);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
+  const rate = usePlayerPrefsStore((s) => s.rate);
+  const setRate = usePlayerPrefsStore((s) => s.setRate);
+
+  // Fetch segments for navigation (React Query deduplicates with FullClozeView)
+  const { data: clozeData } = useClozeFullData(sessionId, difficulty);
+  const segments = clozeData?.segments ?? [];
+
+  const activeSegmentIdx = useMemo(() => {
+    for (let i = segments.length - 1; i >= 0; i--) {
+      if (currentTime >= segments[i].start_time) return i;
+    }
+    return -1;
+  }, [segments, currentTime]);
+
+  const lastTimeRef = useRef(0);
   const handleTimeUpdate = useCallback((time: number) => {
-    setCurrentTime(time);
+    // Throttle state updates: only re-render if time jumped > 250ms
+    if (Math.abs(time - lastTimeRef.current) < 0.25) return;
+    lastTimeRef.current = time;
+    startTransition(() => setCurrentTime(time));
+  }, []);
+
+  const handlePlayChange = useCallback((playing: boolean) => {
+    setIsPlaying(playing);
   }, []);
 
   const handleTimeSeek = useCallback((timeSec: number) => {
@@ -123,6 +154,45 @@ export function ClozeMode({
 
   const handlePlayAudio = useCallback(() => {}, []);
 
+  // ── Playback controls ──────────────────────────────────────────────────────
+
+  const handleStop = useCallback(() => {
+    playerHandle.current?.pause();
+    setIsPlaying(false);
+    if (activeSegmentIdx >= 0 && segments[activeSegmentIdx]) {
+      playerHandle.current?.seekTo(segments[activeSegmentIdx].start_time);
+    } else {
+      playerHandle.current?.seekTo(0);
+    }
+  }, [playerHandle, activeSegmentIdx, segments]);
+
+  const handleReplay = useCallback(() => {
+    if (activeSegmentIdx >= 0 && segments[activeSegmentIdx]) {
+      playerHandle.current?.seekTo(segments[activeSegmentIdx].start_time);
+      playerHandle.current?.play();
+      setIsPlaying(true);
+    } else {
+      playerHandle.current?.seekTo(0);
+      playerHandle.current?.play();
+      setIsPlaying(true);
+    }
+  }, [playerHandle, activeSegmentIdx, segments]);
+
+  const handleNextSegment = useCallback(() => {
+    const nextIdx = activeSegmentIdx + 1;
+    if (nextIdx < segments.length) {
+      playerHandle.current?.seekTo(segments[nextIdx].start_time);
+      playerHandle.current?.play();
+      setIsPlaying(true);
+    }
+  }, [playerHandle, activeSegmentIdx, segments]);
+
+  const handleSpeedChange = useCallback((speed: number) => {
+    setRate(speed);
+    playerHandle.current?.setRate(speed);
+    setShowSpeedMenu(false);
+  }, [playerHandle, setRate]);
+
   const handleRetry = useCallback(() => {
     playerHandle.current?.pause();
     playerHandle.current?.seekTo(0);
@@ -130,6 +200,14 @@ export function ClozeMode({
     setPreviewData(null);
     setPreviewResult(null);
   }, [playerHandle]);
+
+  // Close speed menu on outside click
+  useEffect(() => {
+    if (!showSpeedMenu) return;
+    const handler = () => setShowSpeedMenu(false);
+    const t = setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => { clearTimeout(t); document.removeEventListener('click', handler); };
+  }, [showSpeedMenu]);
 
   useEffect(() => {
     if (!sessionId || !playerHandle.current) return;
@@ -170,16 +248,88 @@ export function ClozeMode({
       <div className="flex-1 overflow-hidden">
         <div className="h-full px-4 py-4 max-w-[1400px] mx-auto">
           <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-            <div className="lg:col-span-4 lg:sticky lg:top-4 self-start">
+            <div className="lg:col-span-4 lg:sticky lg:top-4 self-start space-y-3">
               <div className="rounded-xl overflow-hidden border border-border shadow-soft bg-card">
                 <YoutubePlayer
                   ref={playerHandle}
                   videoId={video.youtube_id}
                   onTimeUpdate={handleTimeUpdate}
-                  onPlayChange={() => {}}
+                  onPlayChange={handlePlayChange}
                 />
               </div>
 
+              {/* ── Playback Controls ── */}
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                {/* Stop */}
+                <button
+                  onClick={handleStop}
+                  title="Stop"
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                  <span className="hidden sm:inline">Stop</span>
+                </button>
+
+                {/* Replay */}
+                <button
+                  onClick={handleReplay}
+                  title="Replay current segment"
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Replay</span>
+                </button>
+
+                {/* Next */}
+                <button
+                  onClick={handleNextSegment}
+                  disabled={activeSegmentIdx >= segments.length - 1}
+                  title="Next segment"
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <SkipForward className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Next</span>
+                </button>
+
+                {/* Speed */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSpeedMenu((s) => !s)}
+                    title="Playback speed"
+                    className="inline-flex items-center gap-1 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                  >
+                    {rate === 1 ? '1x' : `${rate}x`}
+                    <ChevronDown className={cn(
+                      'h-3.5 w-3.5 transition-transform',
+                      showSpeedMenu && 'rotate-180',
+                    )} />
+                  </button>
+                  {showSpeedMenu && (
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px] z-50">
+                      {SPEEDS.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => handleSpeedChange(s)}
+                          className={cn(
+                            'flex items-center justify-between w-full px-3 py-1.5 text-sm transition-colors hover:bg-muted',
+                            rate === s ? 'font-semibold text-foreground' : 'text-muted-foreground',
+                          )}
+                        >
+                          {s === 1 ? 'Normal' : `${s}×`}
+                          {rate === s && <span className="text-primary text-xs">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Segment indicator */}
+              {segments.length > 0 && activeSegmentIdx >= 0 && (
+                <p className="text-center text-xs text-muted-foreground tabular-nums">
+                  Segment {activeSegmentIdx + 1} / {segments.length}
+                </p>
+              )}
             </div>
 
             <div className="lg:col-span-8 min-w-0 flex flex-col min-h-0">

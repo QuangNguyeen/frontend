@@ -48,18 +48,18 @@ function LevelBadge({ level }: { level: string | null }) {
   if (!level) return null;
   const clean = level.replace('~', '');
   const colors: Record<string, string> = {
-    A1: 'bg-green-100 text-green-700',
-    A2: 'bg-green-100 text-green-700',
-    B1: 'bg-blue-100 text-blue-700',
-    B2: 'bg-blue-100 text-blue-700',
-    C1: 'bg-purple-100 text-purple-700',
-    C2: 'bg-purple-100 text-purple-700',
-    Beginner: 'bg-green-100 text-green-700',
-    Intermediate: 'bg-blue-100 text-blue-700',
-    Advanced: 'bg-purple-100 text-purple-700',
+    A1: 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]',
+    A2: 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]',
+    B1: 'bg-[color:var(--badge-info)]/15 text-[color:var(--badge-info)]',
+    B2: 'bg-[color:var(--badge-info)]/15 text-[color:var(--badge-info)]',
+    C1: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    C2: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    Beginner: 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]',
+    Intermediate: 'bg-[color:var(--badge-info)]/15 text-[color:var(--badge-info)]',
+    Advanced: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
   };
   return (
-    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', colors[clean] ?? 'bg-muted text-muted-foreground')}>
+    <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', colors[clean] ?? 'bg-muted text-muted-foreground')}>
       {clean}
     </span>
   );
@@ -216,6 +216,9 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
         <img
           src={video.thumbnail_url}
           alt={video.title}
+          loading="lazy"
+          width={320}
+          height={180}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             (e.target as HTMLImageElement).src =
@@ -267,10 +270,10 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
         </AlertDialog>
       </div>
 
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-semibold text-sm leading-snug mb-1 line-clamp-2">{video.title}</h3>
-        <p className="text-xs text-muted-foreground mb-3">{video.channel}</p>
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <div className="p-3 flex flex-col flex-1">
+        <h3 className="font-semibold text-sm leading-snug mb-0.5 line-clamp-2">{video.title}</h3>
+        <p className="text-xs text-muted-foreground mb-2">{video.channel}</p>
+        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
           <LevelBadge level={video.level} />
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <Globe className="h-3 w-3" />
@@ -293,7 +296,7 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
             )}
           </div>
         )}
-        {video.play_count === 0 && <div className="mb-4" />}
+        {video.play_count === 0 && <div className="mb-2" />}
         <div className="mt-auto flex gap-2">
           <Button className="flex-1" size="sm" onClick={() => setModeDialogOpen(true)}>
             <Play className="h-3.5 w-3.5 mr-1.5" />
@@ -367,11 +370,11 @@ export function LibraryPage() {
     <div className="min-h-full">
       {/* Sticky header */}
       <div className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-10">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="px-[var(--page-px)] py-2.5">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <h1 className="text-xl font-semibold">Video Library</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-lg font-semibold">Video Library</h1>
+              <p className="text-xs text-muted-foreground">
                 Choose a video to practice listening and transcription
               </p>
             </div>
@@ -387,7 +390,7 @@ export function LibraryPage() {
           </div>
 
           {/* Import URL */}
-          <div className="flex flex-col gap-2 mb-4 p-3 bg-muted/50 rounded-lg border border-dashed border-border">
+          <div className="flex flex-col gap-2 mb-2 p-2.5 bg-muted/50 rounded-lg border border-dashed border-border">
             <div className="flex gap-2">
               <div className="flex-1 relative">
                 <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -481,32 +484,32 @@ export function LibraryPage() {
       </div>
 
       {/* Content */}
-      <div className="px-6 py-6">
+      <div className="px-[var(--page-px)] py-[var(--page-py)]">
         {isLoading ? (
-          <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          <div className="flex items-center justify-center py-6 gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm">Loading videos...</span>
           </div>
         ) : isError ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <AlertCircle className="h-8 w-8 text-destructive mb-3" />
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <AlertCircle className="h-6 w-6 text-destructive mb-2" />
             <p className="font-medium text-sm mb-2">Failed to load videos</p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>Try again</Button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Search className="h-5 w-5 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center mb-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <p className="font-medium text-sm">No videos found</p>
-            <p className="text-muted-foreground text-sm mt-1">
+            <p className="text-muted-foreground text-xs mt-0.5">
               {videos.length === 0
                 ? 'Add your first video by pasting a YouTube URL above'
                 : 'Try adjusting your search or filters'}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filtered.map((video) => (
               <VideoCard key={video.id} video={video} onDelete={(id) => deleteMutation.mutate(id)} />
             ))}

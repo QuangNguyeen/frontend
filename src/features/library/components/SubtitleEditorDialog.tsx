@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Trash2, Undo2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Search, Trash2, Undo2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -34,62 +34,86 @@ function formatTime(seconds: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-interface RowProps {
-  id: string;
-  index: number;
-  original: string;
-  timeLabel: string;
-  isDeleted: boolean;
-  onChange: (id: string, text: string, original: string) => void;
-  onToggleDelete: (id: string) => void;
-}
-
 function autoResize(el: HTMLTextAreaElement | null) {
   if (!el) return;
   el.style.height = 'auto';
   el.style.height = `${el.scrollHeight}px`;
 }
 
-const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, onChange, onToggleDelete }: RowProps) {
+interface RowProps {
+  id: string;
+  index: number;
+  original: string;
+  timeLabel: string;
+  isDeleted: boolean;
+  isEdited: boolean;
+  onChange: (id: string, text: string, original: string) => void;
+  onToggleDelete: (id: string) => void;
+}
+
+const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, isEdited, onChange, onToggleDelete }: RowProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    requestAnimationFrame(() => autoResize(textareaRef.current));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (isEditing) {
+      requestAnimationFrame(() => autoResize(textareaRef.current));
+    }
+  }, [isEditing]);
 
   return (
     <div
       className={cn(
-        'group flex gap-3 p-3 bg-card border border-border rounded-lg transition-all',
-        isDeleted ? 'bg-destructive/5 border-destructive/20' : 'hover:border-primary/30 hover:shadow-sm',
+        'group flex gap-2 sm:gap-3 p-2.5 sm:p-3 bg-card border rounded-lg transition-all',
+        isDeleted
+          ? 'bg-destructive/5 border-destructive/20'
+          : isEdited
+            ? 'border-primary/30 shadow-sm'
+            : 'border-border hover:border-primary/20 hover:shadow-sm',
       )}
     >
+      {/* Left accent for edited rows */}
+      {isEdited && !isDeleted && (
+        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-full" />
+      )}
+
       {/* Timeline gutter */}
-      <div className="w-20 shrink-0 flex flex-col items-center gap-1 border-r border-border pr-3">
+      <div className="w-14 sm:w-20 shrink-0 flex flex-col items-center gap-1 border-r border-border pr-2 sm:pr-3">
         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">#{index + 1}</span>
-        <div className="bg-muted text-[10px] text-muted-foreground px-1.5 py-1 rounded font-mono text-center leading-tight w-full font-bold whitespace-pre-line">
+        <div className="bg-muted text-[10px] text-muted-foreground px-1 sm:px-1.5 py-0.5 sm:py-1 rounded font-mono text-center leading-tight w-full font-bold whitespace-pre-line">
           {timeLabel.replace(' – ', ' -\n')}
         </div>
       </div>
 
-      {/* Text area */}
-      <div className="flex-1 min-w-0">
-        <textarea
-          ref={textareaRef}
-          defaultValue={original}
-          rows={2}
-          disabled={isDeleted}
-          spellCheck={false}
-          onChange={(e) => {
-            onChange(id, e.target.value, original);
-            autoResize(textareaRef.current);
-          }}
-          className={cn(
-            'w-full text-sm bg-transparent resize-none outline-none leading-snug py-0.5',
-            'placeholder:text-muted-foreground',
-            isDeleted && 'line-through text-muted-foreground opacity-50 cursor-not-allowed',
-          )}
-        />
+      {/* Text content */}
+      <div className="flex-1 min-w-0 relative">
+        {isEditing || isDeleted ? (
+          <textarea
+            ref={textareaRef}
+            defaultValue={original}
+            rows={2}
+            disabled={isDeleted}
+            spellCheck={false}
+            autoFocus={!isDeleted}
+            onBlur={() => setIsEditing(false)}
+            onChange={(e) => {
+              onChange(id, e.target.value, original);
+              autoResize(textareaRef.current);
+            }}
+            className={cn(
+              'w-full text-sm bg-transparent resize-none outline-none leading-snug py-0.5',
+              'placeholder:text-muted-foreground',
+              isDeleted && 'line-through text-muted-foreground opacity-50 cursor-not-allowed',
+            )}
+          />
+        ) : (
+          <p
+            onClick={() => setIsEditing(true)}
+            className="text-sm leading-snug py-0.5 cursor-text hover:bg-muted/40 rounded px-1 -mx-1 transition-colors min-h-[2.5em]"
+          >
+            {original}
+          </p>
+        )}
       </div>
 
       {/* Delete / Undo button */}
@@ -101,7 +125,7 @@ const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, onCha
             'p-1.5 rounded-md transition-all duration-200',
             isDeleted
               ? 'text-primary hover:bg-primary/10'
-              : 'text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 focus:opacity-100',
+              : 'text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100',
           )}
           title={isDeleted ? 'Undo delete' : 'Delete subtitle'}
         >
@@ -127,6 +151,7 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState('');
   const [savedBanner, setSavedBanner] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const totalChanges = dirtyCount + deletedIds.size;
 
@@ -138,6 +163,7 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     setDeletedIds(new Set());
     setSaveError('');
     setSavedBanner(false);
+    setSearchQuery('');
   }, [open]);
 
   useEffect(() => {
@@ -147,6 +173,21 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     setDirtyCount(0);
     setDeletedIds(new Set());
   }, [transcripts, open]);
+
+  // Ctrl+S keyboard shortcut
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (totalChanges > 0 && !updateMutation.isPending) {
+          handleSave();
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, totalChanges, updateMutation.isPending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRowChange = useCallback((id: string, text: string, original: string) => {
     currentRef.current.set(id, text);
@@ -177,6 +218,15 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     if (saveError) setSaveError('');
   }, [savedBanner, saveError]);
 
+  const handleUndoAll = useCallback(() => {
+    setDeletedIds(new Set());
+    dirtySetRef.current = new Set();
+    currentRef.current = new Map();
+    setDirtyCount(0);
+    setSaveError('');
+    setSavedBanner(false);
+  }, []);
+
   const rows = useMemo(
     () =>
       transcripts.map((t) => ({
@@ -187,6 +237,14 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
       })),
     [transcripts],
   );
+
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(
+      (r) => r.original.toLowerCase().includes(q) || `#${r.index + 1}`.includes(q),
+    );
+  }, [rows, searchQuery]);
 
   const handleSave = () => {
     if (totalChanges === 0) return;
@@ -235,6 +293,27 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
           <DialogDescription className="text-xs text-muted-foreground mt-1.5 font-medium line-clamp-1">{videoTitle}</DialogDescription>
         </DialogHeader>
 
+        {/* Search filter bar */}
+        {rows.length > 0 && (
+          <div className="px-4 md:px-5 pt-3 pb-2 border-b border-border/60 bg-card shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search subtitles or type #number…"
+                className="w-full h-8 pl-8 pr-3 text-sm bg-muted/50 border border-border rounded-lg outline-none placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 transition-all"
+              />
+              {searchQuery && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                  {filteredRows.length}/{rows.length}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-4 md:p-5 bg-muted/30">
           {editStatus?.has_in_progress_attempt && (
             <div className="flex items-start gap-2.5 p-3 rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 mb-4 shadow-sm">
@@ -248,24 +327,24 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
 
           <div className="space-y-2.5">
             {isLoading ? (
-              <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+              <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Loading subtitles...</span>
               </div>
             ) : isError ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+              <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
                 <AlertCircle className="h-6 w-6 text-destructive" />
                 <p className="text-sm font-medium">Failed to load subtitles</p>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
                   Try again
                 </Button>
               </div>
-            ) : rows.length === 0 ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                No subtitles found for this video.
+            ) : filteredRows.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                {searchQuery ? 'No subtitles match your search.' : 'No subtitles found for this video.'}
               </div>
             ) : (
-              rows.map((row) => (
+              filteredRows.map((row) => (
                 <Row
                   key={row.id}
                   id={row.id}
@@ -273,6 +352,7 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
                   original={row.original}
                   timeLabel={row.timeLabel}
                   isDeleted={deletedIds.has(row.id)}
+                  isEdited={dirtySetRef.current.has(row.id)}
                   onChange={handleRowChange}
                   onToggleDelete={handleToggleDelete}
                 />
@@ -295,17 +375,17 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
                 Subtitles saved.
               </span>
             )}
-            {!saveError && !savedBanner && totalChanges > 0 && (
-              <span>
-                {dirtyCount > 0 && `${dirtyCount} edited`}
-                {dirtyCount > 0 && deletedIds.size > 0 && ', '}
-                {deletedIds.size > 0 && (
-                  <span className="text-destructive">{deletedIds.size} to delete</span>
-                )}
-              </span>
-            )}
           </div>
-          <div className="flex gap-2.5 sm:justify-end">
+          <div className="flex items-center gap-2.5 sm:justify-end">
+            {totalChanges > 0 && !saveError && !savedBanner && (
+              <button
+                onClick={handleUndoAll}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors"
+              >
+                <Undo2 className="h-3 w-3" />
+                Undo All
+              </button>
+            )}
             <Button
               variant="outline"
               onClick={() => handleOpenChange(false)}
@@ -317,14 +397,19 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
               onClick={handleSave}
               disabled={totalChanges === 0 || updateMutation.isPending}
               className={cn(
-                'px-5 rounded-lg font-semibold shadow-md',
+                'px-5 rounded-lg font-semibold shadow-md gap-2',
                 deletedIds.size > 0 && dirtyCount === 0 && 'bg-destructive hover:bg-destructive/90',
               )}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {deletedIds.size > 0 && dirtyCount === 0
-                ? `Delete ${deletedIds.size} subtitle${deletedIds.size !== 1 ? 's' : ''}`
-                : 'Save Changes'}
+                ? `Delete ${deletedIds.size}`
+                : 'Save'}
+              {totalChanges > 0 && (
+                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-primary-foreground/20 text-[10px] font-bold">
+                  {totalChanges}
+                </span>
+              )}
             </Button>
           </div>
         </DialogFooter>

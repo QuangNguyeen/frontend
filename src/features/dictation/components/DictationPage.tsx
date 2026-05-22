@@ -4,7 +4,7 @@ import {
   ArrowLeft, RotateCcw, Play, Pause,
   ChevronLeft, ChevronRight, ChevronDown, Trophy,
   Loader2, AlertCircle, CheckCircle2, XCircle,
-  MinusCircle, Clock, Languages,
+  MinusCircle, Clock, Languages, List,
 } from 'lucide-react';
 import { YoutubePlayer } from './YoutubePlayer';
 import type { YoutubePlayerHandle } from './YoutubePlayer';
@@ -12,6 +12,7 @@ import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
 import { useDictationSession, useSubmitAnswer, useCompleteSession } from '../hooks/useDictation';
 import { useVideo, useVideoTranscripts } from '@/features/library/hooks/useVideos';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import type {
   PracticeMode, SentenceResultResponse, TranscriptResponse, WordDiffItem,
@@ -651,38 +652,35 @@ export function DictationPage() {
     <div className="h-full flex flex-col overflow-hidden bg-background">
 
       {/* ── Header ── */}
-      <header className="shrink-0 border-b border-border bg-card px-4 py-3 flex items-center gap-3 z-10">
+      <header className="shrink-0 border-b border-border bg-card px-3 sm:px-4 py-2 flex items-center gap-2.5 z-10">
         <Link
           to="/library"
-          className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
           aria-label="Back to library"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
-              Dictation
-            </p>
-            {results.length > 0 && (
-              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                Avg {runningAverage}%
-              </span>
-            )}
-          </div>
-          <h1 className="text-sm font-semibold tracking-tight truncate">{video.title}</h1>
+          <h1 className="text-xs font-semibold tracking-tight truncate">{video.title}</h1>
         </div>
         {/* Progress pill */}
-        <div className="hidden sm:flex items-center gap-2">
-          <div className="w-28 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary/60 transition-all duration-500 rounded-full"
-              style={{ width: `${sentenceProgress}%` }}
-            />
+        <div className="flex items-center gap-2">
+          {results.length > 0 && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground tabular-nums">
+              {runningAverage}%
+            </span>
+          )}
+          <div className="hidden sm:flex items-center gap-1.5">
+            <div className="w-20 h-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary/60 transition-all duration-500 rounded-full"
+                style={{ width: `${sentenceProgress}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {currentIndex + 1}/{totalSentences}
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {currentIndex + 1}/{totalSentences}
-          </span>
         </div>
       </header>
 
@@ -691,10 +689,10 @@ export function DictationPage() {
 
         {/* ── Main content column ── */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-[900px] mx-auto px-4 py-4 flex flex-col gap-4">
+          <div className="max-w-[720px] mx-auto px-3 sm:px-4 py-3 flex flex-col gap-2.5">
 
-            {/* Video player */}
-            <div className="rounded-xl overflow-hidden border border-border shadow-soft bg-card shrink-0">
+            {/* Video player + controls row */}
+            <div className="rounded-lg overflow-hidden border border-border bg-card shrink-0 max-h-[240px] sm:max-h-[280px]">
               <YoutubePlayer
                 ref={playerHandle}
                 videoId={video.youtube_id}
@@ -704,41 +702,43 @@ export function DictationPage() {
               />
             </div>
 
-            {/* Play controls */}
-            <div className="flex items-center justify-center gap-3 shrink-0">
-              {isVideoPlaying && phase !== 'playing' ? (
-                <button
-                  onClick={() => { playerHandle.current?.pause(); }}
-                  className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-full text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 min-w-[110px]"
-                >
-                  <Pause className="h-3 w-3 fill-current" /> Pause
-                </button>
-              ) : (
-                <button
-                  onClick={handlePlay}
-                  disabled={phase === 'playing'}
-                  className={cn(
-                    'inline-flex items-center justify-center gap-2 h-10 rounded-full text-sm font-medium transition-all min-w-[110px]',
-                    phase === 'playing'
-                      ? 'px-5 bg-primary/10 text-primary cursor-not-allowed'
-                      : 'px-5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md active:scale-95',
-                  )}
-                >
-                  {phase === 'playing' ? (
-                    <><span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Playing…</>
-                  ) : playCount === 0 ? (
-                    <><Play className="h-4 w-4 fill-current" /> Play</>
-                  ) : (
-                    <><RotateCcw className="h-4 w-4" /> Replay</>
-                  )}
-                </button>
-              )}
+            {/* Play controls — compact inline bar */}
+            <div className="flex items-center justify-between gap-2 shrink-0 px-1">
+              <div className="flex items-center gap-1.5">
+                {isVideoPlaying && phase !== 'playing' ? (
+                  <button
+                    onClick={() => { playerHandle.current?.pause(); }}
+                    className="inline-flex items-center justify-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                  >
+                    <Pause className="h-3 w-3 fill-current" /> Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePlay}
+                    disabled={phase === 'playing'}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-1.5 h-8 rounded-full text-xs font-medium transition-all',
+                      phase === 'playing'
+                        ? 'px-3.5 bg-primary/10 text-primary cursor-not-allowed'
+                        : 'px-3.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm active:scale-95',
+                    )}
+                  >
+                    {phase === 'playing' ? (
+                      <><span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" /> Playing…</>
+                    ) : playCount === 0 ? (
+                      <><Play className="h-3.5 w-3.5 fill-current" /> Play</>
+                    ) : (
+                      <><RotateCcw className="h-3.5 w-3.5" /> Replay</>
+                    )}
+                  </button>
+                )}
+              </div>
 
               <button
                 onClick={toggleAutoNext}
                 title={autoNext ? 'Auto-Next: On' : 'Auto-Next: Off'}
                 className={cn(
-                  'flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-full border transition-colors',
+                  'flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-full border transition-colors',
                   autoNext
                     ? 'border-primary/40 bg-primary/5 text-primary'
                     : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -746,12 +746,12 @@ export function DictationPage() {
               >
                 <span>Auto</span>
                 <span className={cn(
-                  'relative inline-flex h-5 w-9 rounded-full transition-colors duration-200',
+                  'relative inline-flex h-3.5 w-6 rounded-full transition-colors duration-200',
                   autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
                 )}>
                   <span className={cn(
-                    'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
-                    autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
+                    'absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white shadow transition-transform duration-200',
+                    autoNext ? 'translate-x-3' : 'translate-x-0.5',
                   )} />
                 </span>
               </button>
@@ -759,32 +759,32 @@ export function DictationPage() {
 
             {/* ── Interaction card ── */}
             <div className={cn(
-              'bg-card rounded-xl border shadow-soft p-5 sm:p-6 flex flex-col gap-5 transition-colors duration-500',
-              phase === 'completed' ? 'border-green-300 bg-green-50/30 dark:bg-green-950/10' : 'border-border',
+              'bg-card rounded-lg border p-3 sm:p-3.5 flex flex-col gap-2.5 transition-colors duration-500',
+              phase === 'completed' ? 'border-[color:var(--badge-success)]/40 bg-[color:var(--badge-success)]/5' : 'border-border',
             )}>
               {/* Navigation bar */}
-              <div className="flex items-center justify-between pb-4 border-b border-border shrink-0">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={handlePrev}
                     disabled={currentIndex === 0}
-                    className="flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
-                  <span className="text-sm font-semibold">
-                    Sentence {currentIndex + 1} <span className="text-muted-foreground font-normal">of {totalSentences}</span>
+                  <span className="text-xs font-semibold tabular-nums">
+                    {currentIndex + 1} <span className="text-muted-foreground font-normal">/ {totalSentences}</span>
                   </span>
                   <button
                     onClick={handleNext}
                     title="Next sentence (Tab)"
-                    className="flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 {results.length > 0 && (
-                  <span className="text-xs text-muted-foreground tabular-nums sm:hidden">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
                     Avg <span className="font-semibold text-foreground">{runningAverage}%</span>
                   </span>
                 )}
@@ -792,18 +792,17 @@ export function DictationPage() {
 
               {/* Phase: practicing / playing */}
               {phase !== 'completed' && (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
                   {/* Live feedback diff */}
                   {latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') && currentSentence && videoId && (
-                    <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200 shrink-0">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1.5 font-medium text-amber-700">
+                    <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200 shrink-0 rounded-md bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-2.5 py-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400">
                           <AlertCircle className="h-3.5 w-3.5" />
-                          Not quite — fix the highlighted word
+                          Fix highlighted words
                         </span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {Math.round(latestDiffCheck.score * 100)}% · {latestDiffCheck.correct_count}/
-                          {latestDiffCheck.word_diffs.filter((d) => d.status !== 'extra').length}
+                        <span className="tabular-nums text-amber-600/80 dark:text-amber-400/70 font-semibold">
+                          {Math.round(latestDiffCheck.score * 100)}%
                         </span>
                       </div>
                       <WordSavePanel
@@ -821,32 +820,30 @@ export function DictationPage() {
 
                   {/* Textarea */}
                   <div className={cn(
-                    'flex items-start gap-3 rounded-2xl border-2 px-4 py-4 transition-all duration-200 bg-background shadow-sm shrink-0',
+                    'relative flex items-start gap-2 rounded-lg border-2 px-2.5 py-2 transition-all duration-200 bg-background shrink-0 overflow-hidden',
                     isVerifying
-                      ? 'border-muted-foreground/30 ring-4 ring-muted/30'
-                      : 'border-primary ring-4 ring-primary/10',
+                      ? 'border-muted-foreground/20'
+                      : 'border-primary/70 focus-within:border-primary',
                   )}>
+                    {isVerifying && (
+                      <div className="absolute inset-x-0 top-0 h-0.5 bg-primary/40 animate-[indeterminate_1.5s_ease-in-out_infinite] origin-left" />
+                    )}
                     <textarea
                       ref={inputRef}
                       value={inputValue}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
                       placeholder="Type what you hear…"
-                      rows={2}
+                      rows={1}
                       autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck={false}
                       disabled={isVerifying}
-                      className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/40 resize-none leading-relaxed disabled:opacity-60"
+                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/40 resize-none leading-relaxed disabled:opacity-60 min-h-[2.5em]"
                     />
-                    {inputValue && !isVerifying && (
-                      <kbd className="shrink-0 mt-1 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
-                        ↵
-                      </kbd>
-                    )}
                     {isVerifying && (
-                      <Loader2 className="shrink-0 mt-1 h-4 w-4 animate-spin text-muted-foreground" />
+                      <Loader2 className="shrink-0 mt-0.5 h-3.5 w-3.5 animate-spin text-muted-foreground" />
                     )}
                   </div>
 
@@ -862,16 +859,16 @@ export function DictationPage() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex items-center justify-end gap-1 shrink-0">
+                  <div className="flex items-center justify-end gap-1.5 shrink-0">
                     {hintsUsed > 0 && (
                       <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded mr-auto">
-                        {hintsUsed} hint{hintsUsed !== 1 ? 's' : ''} used
+                        {hintsUsed} hint{hintsUsed !== 1 ? 's' : ''}
                       </span>
                     )}
                     <button
                       onClick={handleSkip}
                       disabled={isVerifying}
-                      className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
+                      className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1 rounded-md hover:bg-muted transition-colors"
                     >
                       Skip
                     </button>
@@ -879,14 +876,14 @@ export function DictationPage() {
                       size="sm"
                       onClick={handleSubmit}
                       disabled={!inputValue.trim() || isVerifying}
-                      className="gap-1.5 rounded-xl min-w-24"
+                      className="gap-1 rounded-lg h-7 px-3 text-xs"
                     >
                       {isVerifying ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…</>
+                        <><Loader2 className="h-3 w-3 animate-spin" /> Checking</>
                       ) : latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') ? (
                         'Retry'
                       ) : (
-                        'Submit'
+                        <>Submit <kbd className="text-[9px] opacity-60 ml-0.5 font-mono">⌘↵</kbd></>
                       )}
                     </Button>
                   </div>
@@ -895,7 +892,28 @@ export function DictationPage() {
 
               {/* Phase: completed */}
               {phase === 'completed' && latestResult && (
-                <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                  {/* Score + next inline */}
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'inline-flex items-center text-sm font-bold px-2 py-0.5 rounded-md animate-in zoom-in-90 duration-200',
+                      latestResult.score >= 90 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]'
+                        : latestResult.score >= 70 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]'
+                        : 'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
+                    )}>
+                      {latestResult.score}%
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {latestResult.score >= 90 ? 'Excellent!' : latestResult.score >= 70 ? 'Good job' : 'Keep practicing'}
+                    </span>
+                    <Button onClick={handleNext} size="sm" className="ml-auto gap-1 rounded-lg h-7 px-3 text-xs">
+                      {isLastSentence ? (
+                        <><Trophy className="h-3.5 w-3.5" /> Results</>
+                      ) : (
+                        <>Next <ChevronRight className="h-3.5 w-3.5" /></>
+                      )}
+                    </Button>
+                  </div>
 
                   {/* WordSavePanel (click words → floating popover) */}
                   {currentSentence && videoId && (
@@ -913,38 +931,29 @@ export function DictationPage() {
 
                   {/* Translation */}
                   {currentSentence?.translation && (
-                    <div className="rounded-xl border border-border overflow-hidden">
+                    <div className="rounded-lg border border-border overflow-hidden">
                       <button
                         onClick={() => setShowTranslation((v) => !v)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted/40 transition-colors"
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium hover:bg-muted/40 transition-colors"
                       >
-                        <span className="flex items-center gap-2 text-muted-foreground">
-                          <Languages className="h-4 w-4" />
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Languages className="h-3.5 w-3.5" />
                           Translation
                         </span>
                         <ChevronDown className={cn(
-                          'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                          'h-3.5 w-3.5 text-muted-foreground transition-transform duration-200',
                           showTranslation && 'rotate-180',
                         )} />
                       </button>
                       {showTranslation && (
-                        <div className="px-4 py-3 bg-muted/20 border-t border-border">
-                          <p className="text-sm leading-relaxed text-muted-foreground italic">
+                        <div className="px-3 py-2 bg-muted/20 border-t border-border">
+                          <p className="text-xs leading-relaxed text-muted-foreground italic">
                             {currentSentence.translation}
                           </p>
                         </div>
                       )}
                     </div>
                   )}
-
-                  {/* Next button */}
-                  <Button onClick={handleNext} className="w-full gap-2 rounded-xl h-12 text-base shrink-0 mt-2">
-                    {isLastSentence ? (
-                      <><Trophy className="h-4 w-4" /> See Final Results</>
-                    ) : (
-                      <>Next Sentence <ChevronRight className="h-4 w-4" /></>
-                    )}
-                  </Button>
                 </div>
               )}
             </div>
@@ -952,12 +961,12 @@ export function DictationPage() {
         </div>
 
         {/* ── Segments sidebar (desktop only) ── */}
-        <div className="hidden lg:flex flex-col w-[280px] shrink-0 border-l border-border bg-card">
-          <div className="px-4 py-3 border-b border-border bg-muted/30 shrink-0">
-            <p className="text-sm font-semibold">Subtitles</p>
-            <p className="text-xs text-muted-foreground">{results.length} / {totalSentences} completed</p>
+        <div className="hidden lg:flex flex-col w-[300px] shrink-0 border-l border-border bg-card">
+          <div className="px-3 py-2 border-b border-border bg-muted/30 shrink-0 flex items-center justify-between">
+            <p className="text-xs font-semibold">Subtitles</p>
+            <span className="text-[10px] tabular-nums text-muted-foreground font-medium">{results.length}/{totalSentences}</span>
           </div>
-          <div ref={segmentListRef} className="flex-1 overflow-y-auto divide-y divide-border">
+          <div ref={segmentListRef} className="flex-1 overflow-y-auto">
             {sentences.map((seg, i) => {
               const result = results.find((r) => r.sentenceIndex === i);
               const isActive = i === currentIndex;
@@ -971,57 +980,57 @@ export function DictationPage() {
                   data-live={isLive}
                   onClick={() => !isActive && setCurrentIndex(i)}
                   className={cn(
-                    'flex items-start gap-2.5 px-4 py-2.5 transition-colors',
+                    'flex items-start gap-2 px-3 py-2 transition-colors border-b border-border/50',
                     isActive && 'bg-primary/5 border-l-2 border-l-primary',
                     isLive && !isActive && 'bg-blue-50/50 dark:bg-blue-950/20',
                     !isActive && 'cursor-pointer hover:bg-muted/30 hover:opacity-100',
-                    !isDone && !isActive && !isLive && 'opacity-50',
+                    !isDone && !isActive && !isLive && 'opacity-40',
                   )}
                 >
                   <div className="shrink-0 mt-0.5">
                     {isDone ? (
                       result!.score >= 80 ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
                       ) : result!.score >= 50 ? (
-                        <MinusCircle className="h-4 w-4 text-yellow-500" />
+                        <MinusCircle className="h-3.5 w-3.5 text-yellow-500" />
                       ) : (
-                        <XCircle className="h-4 w-4 text-red-400" />
+                        <XCircle className="h-3.5 w-3.5 text-red-400" />
                       )
                     ) : isActive ? (
-                      <span className="h-4 w-4 flex items-center justify-center">
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      <span className="h-3.5 w-3.5 flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                       </span>
                     ) : isLive ? (
-                      <span className="h-4 w-4 flex items-center justify-center">
-                        <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                      <span className="h-3.5 w-3.5 flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
                       </span>
                     ) : (
-                      <span className="h-4 w-4 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                      <span className="h-3.5 w-3.5 flex items-center justify-center">
+                        <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
                       </span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <span className={cn('text-xs font-medium', isActive ? 'text-primary' : 'text-muted-foreground')}>
-                        #{i + 1}
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={cn('text-[10px] font-semibold tabular-nums', isActive ? 'text-primary' : 'text-muted-foreground')}>
+                        {i + 1}
                       </span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                        <Clock className="h-3 w-3" />{formatTime(seg.start_time)}
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                        {formatTime(seg.start_time)}
                       </span>
                       {isDone && (
                         <span className={cn(
-                          'text-xs font-bold px-1.5 py-0.5 rounded-full leading-none',
-                          result!.score >= 80 ? 'bg-green-100 text-green-700' :
-                            result!.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700',
+                          'ml-auto text-[10px] font-bold px-1.5 py-px rounded leading-none',
+                          result!.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]' :
+                            result!.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]' :
+                              'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
                         )}>
                           {Math.round(result!.score)}%
                         </span>
                       )}
                     </div>
                     <p className={cn(
-                      'text-xs leading-snug line-clamp-2',
+                      'text-[11px] leading-snug line-clamp-2',
                       isDone ? 'text-foreground' : 'text-muted-foreground',
                     )}>
                       {isDone ? seg.text : seg.text.replace(/\S/g, '·')}
@@ -1032,6 +1041,58 @@ export function DictationPage() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* Mobile transcript Sheet */}
+      <div className="lg:hidden fixed bottom-4 left-4 z-30">
+        <Sheet>
+          <SheetTrigger asChild>
+            <button className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg">
+              <List className="h-3.5 w-3.5" />
+              {results.length}/{totalSentences}
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="h-[55vh] p-0 rounded-t-xl">
+            <SheetHeader className="px-4 pt-3 pb-2 border-b border-border">
+              <SheetTitle className="text-sm">Subtitles — {results.length}/{totalSentences}</SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto divide-y divide-border">
+              {sentences.map((seg, i) => {
+                const result = results.find((r) => r.sentenceIndex === i);
+                const isActive = i === currentIndex;
+                const isDone = !!result;
+                return (
+                  <button
+                    key={seg.id}
+                    onClick={() => setCurrentIndex(i)}
+                    className={cn(
+                      'w-full flex items-start gap-2 px-4 py-2 text-left transition-colors',
+                      isActive && 'bg-primary/5',
+                      !isActive && 'hover:bg-muted/30',
+                    )}
+                  >
+                    <span className={cn('text-xs font-medium mt-0.5 w-5 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')}>
+                      {i + 1}
+                    </span>
+                    <span className={cn('text-xs leading-snug line-clamp-2 flex-1', isDone ? 'text-foreground' : 'text-muted-foreground')}>
+                      {isDone ? seg.text : seg.text.replace(/\S/g, '·')}
+                    </span>
+                    {isDone && result && (
+                      <span className={cn(
+                        'text-xs font-bold px-1.5 py-0.5 rounded-full shrink-0',
+                        result.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]' :
+                          result.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]' :
+                            'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
+                      )}>
+                        {Math.round(result.score)}%
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* Floating word popover */}

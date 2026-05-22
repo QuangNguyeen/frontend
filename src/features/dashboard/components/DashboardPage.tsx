@@ -69,12 +69,12 @@ function MicroLabel({ children, className }: { children: React.ReactNode; classN
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex-1 px-8 py-7 min-w-0">
+    <div className="flex-1 px-5 py-4 min-w-0">
       <MicroLabel>{label}</MicroLabel>
-      <p className="text-2xl font-semibold mt-3 leading-none tabular-nums tracking-tight">
+      <p className="text-xl font-semibold mt-1.5 leading-none tabular-nums tracking-tight">
         {value}
       </p>
-      {sub && <p className="text-sm text-muted-foreground mt-3 leading-snug">{sub}</p>}
+      {sub && <p className="text-sm text-muted-foreground mt-1.5 leading-snug">{sub}</p>}
     </div>
   );
 }
@@ -107,7 +107,7 @@ function Hero({
   const ctaProgressPct = inProgress ? progressToPercent(continueTarget.progress_str) : 0;
 
   return (
-    <section className="grid grid-cols-12 gap-8 lg:gap-12 items-center">
+    <section className="grid grid-cols-12 gap-5 lg:gap-8 items-center">
       {/* Streak numeral — 5/12 */}
       <div
         className="col-span-12 lg:col-span-5 dash-enter"
@@ -118,19 +118,19 @@ function Hero({
           Current streak
         </MicroLabel>
         <p
-          className="font-semibold tracking-[-0.04em] leading-[0.88] mt-3 tabular-nums text-[color:var(--accent-amber)]"
-          style={{ fontSize: 'clamp(6rem, 14vw, 11.125rem)' }}
+          className="font-semibold tracking-[-0.04em] leading-[0.88] mt-2 tabular-nums text-[color:var(--accent-amber)]"
+          style={{ fontSize: 'clamp(4rem, 10vw, 7rem)' }}
         >
           {streak}
         </p>
-        <div className="mt-6 max-w-sm">
-          <p className="text-base text-foreground leading-snug">
+        <div className="mt-4 max-w-sm">
+          <p className="text-sm text-foreground leading-snug">
             <span className="text-muted-foreground">Today's goal:</span>{' '}
             <span className="font-semibold tabular-nums">
               {todaySessions} / {TODAY_GOAL_SENTENCES} sentences
             </span>
           </p>
-          <div className="mt-3 h-1.5 w-full bg-border rounded-full overflow-hidden">
+          <div className="mt-2 h-1.5 w-full bg-border rounded-full overflow-hidden">
             <div
               className="h-full bg-[color:var(--accent-emerald)] transition-[width] duration-700 ease-out"
               style={{ width: `${todayProgress * 100}%` }}
@@ -141,32 +141,32 @@ function Hero({
 
       {/* CTA stack — 7/12 */}
       <div
-        className="col-span-12 lg:col-span-7 flex flex-col gap-3 dash-enter"
+        className="col-span-12 lg:col-span-7 flex flex-col gap-2.5 dash-enter"
         style={{ animationDelay: '100ms' }}
       >
         <button
           onClick={onContinue}
-          className="group relative flex items-center gap-4 h-20 px-5 bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] rounded-xl overflow-hidden shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
+          className="group relative flex items-center gap-4 h-16 px-4 bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] rounded-xl overflow-hidden shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
         >
           {continueVideo?.thumbnail_url ? (
             <img
               src={continueVideo.thumbnail_url}
               alt=""
-              className="h-14 w-20 object-cover rounded-md shrink-0 bg-black/20"
+              className="h-11 w-16 object-cover rounded-md shrink-0 bg-black/20"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
             />
           ) : (
-            <div className="h-14 w-20 rounded-md bg-white/15 flex items-center justify-center shrink-0">
-              <PlayCircle className="h-6 w-6" />
+            <div className="h-11 w-16 rounded-md bg-white/15 flex items-center justify-center shrink-0">
+              <PlayCircle className="h-5 w-5" />
             </div>
           )}
           <div className="flex-1 text-left min-w-0">
-            <p className="text-xs font-semibold tracking-[0.12em] uppercase opacity-85">
+            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase opacity-85">
               {ctaLabel}
             </p>
-            <p className="text-lg font-semibold truncate mt-1 leading-tight">
+            <p className="text-base font-semibold truncate mt-0.5 leading-tight">
               {ctaTitle}
             </p>
           </div>
@@ -186,16 +186,16 @@ function Hero({
 
         <button
           onClick={onVocabulary}
-          className="group flex items-center gap-3 h-16 px-5 border border-border bg-card rounded-xl transition-all duration-150 ease-out hover:border-foreground/60 hover:bg-muted/40 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group flex items-center gap-3 h-12 px-4 border border-border bg-card rounded-xl transition-all duration-150 ease-out hover:border-foreground/60 hover:bg-muted/40 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <BookMarked className="h-[18px] w-[18px] shrink-0" />
-          <span className="text-base font-medium flex-1 text-left">Review vocabulary</span>
-          <ArrowRight className="h-[18px] w-[18px] shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5" />
+          <BookMarked className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium flex-1 text-left">Review vocabulary</span>
+          <ArrowRight className="h-4 w-4 shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5" />
         </button>
 
         <button
           onClick={onLibrary}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors self-start mt-2 inline-flex items-center gap-1.5"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors self-start mt-1 inline-flex items-center gap-1.5"
         >
           Browse library
           <ArrowRight className="h-3.5 w-3.5" />
@@ -217,7 +217,7 @@ function Timeline({
   const maxCount = Math.max(1, ...days.map((d) => d.count));
   return (
     <section className="dash-enter" style={{ animationDelay: '200ms' }}>
-      <div className="flex items-baseline justify-between mb-5">
+      <div className="flex items-baseline justify-between mb-3">
         <MicroLabel>Last 30 days</MicroLabel>
         {avgAccuracy != null && (
           <p className="text-sm text-muted-foreground tabular-nums">
@@ -225,7 +225,7 @@ function Timeline({
           </p>
         )}
       </div>
-      <div className="flex items-end gap-[3px] h-28 border-t border-b border-border py-4">
+      <div className="flex items-end gap-[3px] h-20 border-t border-b border-border py-3">
         {days.map((d, i) => {
           const h = d.count > 0 ? Math.max(10, (d.count / maxCount) * 72) : 3;
           const color =
@@ -270,19 +270,19 @@ function Timeline({
 
 function HeroSkeleton() {
   return (
-    <section className="grid grid-cols-12 gap-8 lg:gap-12 items-center animate-pulse">
+    <section className="grid grid-cols-12 gap-5 lg:gap-8 items-center animate-pulse">
       <div className="col-span-12 lg:col-span-5">
         <div className="h-3 w-32 bg-muted rounded" />
         <div
-          className="mt-3 bg-muted rounded"
-          style={{ height: 'clamp(5rem, 12vw, 9.5rem)', width: '60%' }}
+          className="mt-2 bg-muted rounded"
+          style={{ height: 'clamp(3.5rem, 8vw, 6rem)', width: '60%' }}
         />
-        <div className="mt-5 h-4 w-48 bg-muted rounded" />
-        <div className="mt-3 h-1 w-full max-w-xs bg-muted rounded" />
+        <div className="mt-3 h-4 w-48 bg-muted rounded" />
+        <div className="mt-2 h-1 w-full max-w-xs bg-muted rounded" />
       </div>
-      <div className="col-span-12 lg:col-span-7 flex flex-col gap-3">
-        <div className="h-20 bg-muted rounded-xl" />
-        <div className="h-16 bg-muted/60 rounded-xl" />
+      <div className="col-span-12 lg:col-span-7 flex flex-col gap-2.5">
+        <div className="h-16 bg-muted rounded-xl" />
+        <div className="h-12 bg-muted/60 rounded-xl" />
       </div>
     </section>
   );
@@ -309,10 +309,10 @@ function StatsSkeleton() {
   return (
     <section className="flex divide-x divide-border border-y border-border bg-card rounded-xl shadow-soft animate-pulse overflow-hidden">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex-1 px-8 py-7">
+        <div key={i} className="flex-1 px-5 py-4">
           <div className="h-3 w-24 bg-muted rounded" />
-          <div className="h-7 w-20 bg-muted rounded mt-3" />
-          <div className="h-4 w-28 bg-muted rounded mt-3" />
+          <div className="h-6 w-20 bg-muted rounded mt-2" />
+          <div className="h-3 w-28 bg-muted rounded mt-2" />
         </div>
       ))}
     </section>
@@ -349,10 +349,10 @@ export function DashboardPage() {
     <div className="min-h-full bg-background">
       {/* Greeting bar */}
       <header
-        className="border-b border-border bg-card px-8 sm:px-14 py-8 flex items-baseline justify-between gap-6 dash-enter"
+        className="border-b border-border bg-card px-[var(--page-px)] sm:px-8 py-3 flex items-baseline justify-between gap-4 dash-enter"
         style={{ animationDelay: '0ms' }}
       >
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+        <h1 className="text-lg font-semibold tracking-tight">
           {greeting}, {displayName}.
         </h1>
         <p className="text-xs font-medium tracking-[0.1em] uppercase text-muted-foreground shrink-0">
@@ -362,7 +362,7 @@ export function DashboardPage() {
         </p>
       </header>
 
-      <div className="px-8 sm:px-14 py-14 max-w-[1240px] space-y-20">
+      <div className="px-[var(--page-px)] sm:px-8 py-[var(--page-py)] max-w-[1240px] space-y-6">
 
         {isError ? (
           <div className="flex items-center gap-2 text-destructive text-sm">
@@ -419,7 +419,7 @@ export function DashboardPage() {
 
         {/* Recent sessions */}
         <section className="dash-enter" style={{ animationDelay: '400ms' }}>
-          <div className="flex items-baseline justify-between mb-5">
+          <div className="flex items-baseline justify-between mb-3">
             <MicroLabel>Recent sessions</MicroLabel>
             <button
               onClick={() => navigate('/history')}
@@ -435,7 +435,7 @@ export function DashboardPage() {
               {Array.from({ length: 4 }).map((_, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-4 border-b border-border py-5 px-3"
+                  className="flex items-center gap-4 border-b border-border py-3.5 px-3"
                 >
                   <div className="h-3 w-14 bg-muted rounded" />
                   <div className="h-4 flex-1 bg-muted rounded" />
@@ -444,12 +444,12 @@ export function DashboardPage() {
               ))}
             </ul>
           ) : history.length === 0 ? (
-            <div className="border-t border-b border-border py-14 text-center bg-card rounded-xl">
-              <div className="h-12 w-12 mx-auto rounded-full border border-border flex items-center justify-center mb-4">
-                <PlayCircle className="h-5 w-5 text-muted-foreground" />
+            <div className="border-t border-b border-border py-6 text-center bg-card rounded-xl">
+              <div className="h-8 w-8 mx-auto rounded-full border border-border flex items-center justify-center mb-2">
+                <PlayCircle className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <p className="text-base font-semibold">No sessions yet</p>
-              <p className="text-sm text-muted-foreground mt-1.5">
+              <p className="text-sm font-semibold">No sessions yet</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Start a dictation to see your progress here.
               </p>
             </div>
@@ -463,7 +463,7 @@ export function DashboardPage() {
                     key={h.id}
                     onClick={clickable ? () => navigate(`/dictation/${video!.id}`) : undefined}
                     className={cn(
-                      'flex items-center gap-5 border-b border-border py-5 px-3 -mx-3 rounded-md transition-colors duration-150 ease-out',
+                      'flex items-center gap-4 border-b border-border py-3.5 px-3 -mx-3 rounded-md transition-colors duration-150 ease-out',
                       clickable && 'cursor-pointer hover:bg-muted/60',
                     )}
                   >

@@ -6,6 +6,7 @@ import {
 import { toast } from 'sonner';
 import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
+import { useTheme } from '@/app/ThemeProvider';
 import { cn } from '@/lib/utils';
 import type { UserPreferences, UserProfileResponse } from '@/shared/types/api';
 
@@ -77,7 +78,7 @@ function MetricCard({
   return (
     <div
       className={cn(
-        'p-7 rounded-2xl border transition-shadow duration-200',
+        'p-5 rounded-2xl border transition-shadow duration-200',
         isEmerald
           ? 'bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] border-transparent shadow-soft-lg'
           : 'bg-card border-border shadow-soft hover:shadow-soft-lg',
@@ -85,7 +86,7 @@ function MetricCard({
     >
       <div
         className={cn(
-          'h-10 w-10 rounded-xl flex items-center justify-center mb-5',
+          'h-9 w-9 rounded-xl flex items-center justify-center mb-3',
           isEmerald ? 'bg-white/15' : 'bg-muted',
         )}
       >
@@ -99,11 +100,11 @@ function MetricCard({
       >
         {label}
       </p>
-      <p className="text-3xl font-semibold mt-2 leading-none tabular-nums tracking-tight">
+      <p className="text-2xl font-semibold mt-1.5 leading-none tabular-nums tracking-tight">
         {value}
       </p>
       {sub && (
-        <p className={cn('text-sm mt-3 leading-snug', isEmerald ? 'text-white/85' : 'text-muted-foreground')}>
+        <p className={cn('text-sm mt-1.5 leading-snug', isEmerald ? 'text-white/85' : 'text-muted-foreground')}>
           {sub}
         </p>
       )}
@@ -125,7 +126,7 @@ function ThemeOption({
       type="button"
       onClick={() => onSelect(value)}
       className={cn(
-        'flex flex-col items-center gap-2 px-5 py-5 rounded-xl border text-base font-medium transition-all duration-150 ease-out',
+        'flex flex-col items-center gap-1.5 px-4 py-4 rounded-xl border text-sm font-medium transition-all duration-150 ease-out',
         selected
           ? 'border-foreground bg-muted/60 shadow-soft'
           : 'border-border bg-card hover:bg-muted/40 hover:border-foreground/40',
@@ -149,27 +150,27 @@ function ThemeOption({
 
 function HeaderSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-soft px-10 py-9 flex items-center gap-7 animate-pulse">
-      <div className="h-20 w-20 rounded-full bg-muted shrink-0" />
-      <div className="flex-1 space-y-3">
-        <div className="h-7 w-56 bg-muted rounded" />
-        <div className="h-4 w-72 bg-muted rounded" />
-        <div className="h-3 w-40 bg-muted rounded" />
+    <div className="bg-card border border-border rounded-2xl shadow-soft px-8 py-6 flex items-center gap-5 animate-pulse">
+      <div className="h-16 w-16 rounded-full bg-muted shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-6 w-48 bg-muted rounded" />
+        <div className="h-4 w-64 bg-muted rounded" />
+        <div className="h-3 w-36 bg-muted rounded" />
       </div>
-      <div className="h-12 w-32 bg-muted rounded-xl" />
+      <div className="h-10 w-28 bg-muted rounded-xl" />
     </div>
   );
 }
 
 function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 animate-pulse">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="p-7 bg-card border border-border rounded-2xl">
-          <div className="h-10 w-10 rounded-xl bg-muted mb-5" />
+        <div key={i} className="p-5 bg-card border border-border rounded-2xl">
+          <div className="h-9 w-9 rounded-xl bg-muted mb-3" />
           <div className="h-3 w-24 bg-muted rounded" />
-          <div className="h-8 w-20 bg-muted rounded mt-3" />
-          <div className="h-3 w-28 bg-muted rounded mt-3" />
+          <div className="h-6 w-20 bg-muted rounded mt-2" />
+          <div className="h-3 w-28 bg-muted rounded mt-2" />
         </div>
       ))}
     </div>
@@ -178,7 +179,7 @@ function StatsSkeleton() {
 
 function SettingsSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-soft p-10 animate-pulse space-y-8">
+    <div className="bg-card border border-border rounded-2xl shadow-soft p-6 sm:p-8 animate-pulse space-y-6">
       <div>
         <div className="h-3 w-32 bg-muted rounded mb-3" />
         <div className="h-12 bg-muted rounded-xl" />
@@ -205,6 +206,7 @@ export function ProfilePage() {
   const { data: profile, isLoading, isError, error } = useProfile();
   const { mutateAsync: updateProfile, isPending } = useUpdateProfile();
   const setUser = useAuthStore((s) => s.setUser);
+  const { setTheme: applyTheme } = useTheme();
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormState | null>(null);
@@ -243,6 +245,7 @@ export function ProfilePage() {
         preferred_language: updated.preferred_language,
         streak_days: updated.stats.current_streak,
       });
+      applyTheme(form.theme);
       toast.success('Profile saved');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not save your changes';
@@ -260,10 +263,10 @@ export function ProfilePage() {
   return (
     <div className="min-h-full bg-background">
       <header
-        className="border-b border-border bg-card px-8 sm:px-14 py-8 flex items-baseline justify-between gap-6 dash-enter"
+        className="border-b border-border bg-card px-[var(--page-px)] sm:px-8 py-3 flex items-baseline justify-between gap-4 dash-enter"
         style={{ animationDelay: '0ms' }}
       >
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+        <h1 className="text-lg font-semibold tracking-tight">
           Your profile
         </h1>
         <p className="text-xs font-medium tracking-[0.1em] uppercase text-muted-foreground shrink-0">
@@ -271,7 +274,7 @@ export function ProfilePage() {
         </p>
       </header>
 
-      <div className="px-8 sm:px-14 py-14 max-w-[1180px] space-y-16">
+      <div className="px-[var(--page-px)] sm:px-8 py-[var(--page-py)] max-w-[1180px] space-y-6">
 
         {isError ? (
           <div className="flex items-center gap-2 text-destructive text-base">
@@ -285,26 +288,26 @@ export function ProfilePage() {
               <HeaderSkeleton />
             ) : (
               <section
-                className="bg-card border border-border rounded-2xl shadow-soft px-8 sm:px-10 py-9 flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-7 dash-enter"
+                className="bg-card border border-border rounded-2xl shadow-soft px-6 sm:px-8 py-6 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 dash-enter"
                 style={{ animationDelay: '60ms' }}
               >
-                <div className="h-20 w-20 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-3xl font-semibold shrink-0 shadow-soft">
+                <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-semibold shrink-0 shadow-soft">
                   {avatarInitial(profile.display_name)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-2xl font-semibold tracking-tight truncate">
+                  <h2 className="text-xl font-semibold tracking-tight truncate">
                     {profile.display_name}
                   </h2>
-                  <p className="text-base text-muted-foreground mt-1.5 inline-flex items-center gap-2">
-                    <Mail className="h-4 w-4 shrink-0" /> {profile.email}
+                  <p className="text-sm text-muted-foreground mt-1 inline-flex items-center gap-2">
+                    <Mail className="h-3.5 w-3.5 shrink-0" /> {profile.email}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2 inline-flex items-center gap-2">
-                    <Calendar className="h-3.5 w-3.5 shrink-0" /> Joined {formatJoinDate(profile.created_at)}
+                  <p className="text-xs text-muted-foreground mt-1.5 inline-flex items-center gap-2">
+                    <Calendar className="h-3 w-3 shrink-0" /> Joined {formatJoinDate(profile.created_at)}
                   </p>
                 </div>
                 <button
                   onClick={handleEditProfile}
-                  className="group inline-flex items-center justify-center gap-2 h-12 px-6 rounded-xl bg-foreground text-background text-base font-medium transition-all duration-150 ease-out hover:-translate-y-px shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground"
+                  className="group inline-flex items-center justify-center gap-2 h-9 px-5 rounded-xl bg-foreground text-background text-sm font-medium transition-all duration-150 ease-out hover:-translate-y-px shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground"
                 >
                   <Pencil className="h-4 w-4" /> Edit profile
                 </button>
@@ -313,7 +316,7 @@ export function ProfilePage() {
 
             {/* Stats */}
             <section className="dash-enter" style={{ animationDelay: '140ms' }}>
-              <div className="flex items-baseline justify-between mb-5">
+              <div className="flex items-baseline justify-between mb-3">
                 <MicroLabel>Your progress</MicroLabel>
                 {stats && (
                   <p className="text-sm text-muted-foreground tabular-nums">
@@ -324,7 +327,7 @@ export function ProfilePage() {
               {!stats ? (
                 <StatsSkeleton />
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <MetricCard
                     label="Attempts"
                     value={`${stats.total_attempts}`}
@@ -356,7 +359,7 @@ export function ProfilePage() {
 
             {/* Settings */}
             <section className="dash-enter" style={{ animationDelay: '220ms' }}>
-              <div className="flex items-baseline justify-between mb-5">
+              <div className="flex items-baseline justify-between mb-3">
                 <MicroLabel>Settings &amp; preferences</MicroLabel>
                 {profile && isDirty && (
                   <button
@@ -373,13 +376,13 @@ export function ProfilePage() {
               {!profile || !form ? (
                 <SettingsSkeleton />
               ) : (
-                <div className="bg-card border border-border rounded-2xl shadow-soft p-8 sm:p-10 space-y-10">
+                <div className="bg-card border border-border rounded-2xl shadow-soft p-6 sm:p-8 space-y-8">
                   {/* Display name */}
                   <div>
-                    <label htmlFor="displayName" className="block text-base font-semibold mb-2.5">
+                    <label htmlFor="displayName" className="block text-sm font-semibold mb-2">
                       Display name
                     </label>
-                    <p className="text-sm text-muted-foreground mb-3">
+                    <p className="text-xs text-muted-foreground mb-2">
                       How your name appears across DictaLearn.
                     </p>
                     <input
@@ -391,7 +394,7 @@ export function ProfilePage() {
                       onBlur={() => setTouched(true)}
                       maxLength={100}
                       className={cn(
-                        'w-full max-w-md h-12 px-4 text-base rounded-xl border bg-background transition-colors',
+                        'w-full max-w-md h-9 px-3 text-sm rounded-lg border bg-background transition-colors',
                         'focus:outline-none focus:ring-2 focus:ring-ring',
                         touched && validationError ? 'border-destructive' : 'border-border',
                       )}
@@ -405,11 +408,11 @@ export function ProfilePage() {
 
                   {/* Email (read-only) */}
                   <div>
-                    <label className="block text-base font-semibold mb-2.5">Email</label>
-                    <p className="text-sm text-muted-foreground mb-3">
+                    <label className="block text-sm font-semibold mb-2">Email</label>
+                    <p className="text-xs text-muted-foreground mb-2">
                       Tied to your account; not editable here.
                     </p>
-                    <div className="w-full max-w-md h-12 px-4 flex items-center text-base rounded-xl border border-border bg-muted/40 text-muted-foreground">
+                    <div className="w-full max-w-md h-9 px-3 flex items-center text-sm rounded-lg border border-border bg-muted/40 text-muted-foreground">
                       {profile.email}
                     </div>
                   </div>
@@ -418,15 +421,15 @@ export function ProfilePage() {
 
                   {/* Audio speed */}
                   <div>
-                    <div className="flex items-baseline justify-between mb-2.5">
-                      <label htmlFor="audioSpeed" className="text-base font-semibold">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <label htmlFor="audioSpeed" className="text-sm font-semibold">
                         Default audio speed
                       </label>
-                      <span className="text-base font-semibold tabular-nums">
+                      <span className="text-sm font-semibold tabular-nums">
                         {form.audioSpeed.toFixed(2)}×
                       </span>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-4">
+                    <p className="text-xs text-muted-foreground mb-3">
                       Initial playback speed for new dictation sessions.
                     </p>
                     <input
@@ -448,8 +451,8 @@ export function ProfilePage() {
 
                   {/* Theme */}
                   <div>
-                    <label className="block text-base font-semibold mb-2.5">Theme</label>
-                    <p className="text-sm text-muted-foreground mb-4">
+                    <label className="block text-sm font-semibold mb-2">Theme</label>
+                    <p className="text-xs text-muted-foreground mb-3">
                       Match your system or pick a fixed look.
                     </p>
                     <div className="grid grid-cols-3 gap-3 max-w-md">
@@ -484,7 +487,7 @@ export function ProfilePage() {
                       onClick={handleSave}
                       disabled={!isDirty || isPending || !!validationError}
                       className={cn(
-                        'inline-flex items-center justify-center gap-2 h-12 px-7 rounded-xl text-base font-semibold transition-all duration-150 ease-out',
+                        'inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-sm font-semibold transition-all duration-150 ease-out',
                         'bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] shadow-soft-lg',
                         'hover:brightness-110 hover:-translate-y-px',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]',
@@ -505,7 +508,7 @@ export function ProfilePage() {
             </section>
 
             {isLoading && !profile && (
-              <div className="space-y-16">
+              <div className="space-y-10">
                 <StatsSkeleton />
               </div>
             )}
