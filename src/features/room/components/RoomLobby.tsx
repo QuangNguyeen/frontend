@@ -41,37 +41,38 @@ export function RoomLobby({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full p-5 gap-5">
-      <div className="text-center">
+    <div className="app-page flex min-h-full items-center justify-center p-4">
+      <div className="grid w-full max-w-4xl gap-4 md:grid-cols-[1fr_360px]">
+      <div className="app-card p-5 text-center md:text-left">
         <p className="text-xs font-medium tracking-wider uppercase text-muted-foreground mb-2">
           Room Code
         </p>
         <button
           onClick={handleCopy}
-          className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-card border border-border shadow-soft hover:bg-muted/50 transition-colors"
+          className="inline-flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-5 py-3 shadow-soft transition-colors hover:bg-muted/70"
         >
-          <span className="text-2xl font-mono font-bold tracking-[0.3em]">{roomCode}</span>
+          <span className="text-2xl font-mono font-bold tracking-[0.28em]">{roomCode}</span>
           {copied
             ? <Check className="h-5 w-5 text-green-500" />
             : <Copy className="h-5 w-5 text-muted-foreground" />}
         </button>
         <p className="text-xs text-muted-foreground mt-2">Share this code with other players</p>
+
+        <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-muted-foreground md:justify-start">
+          <span className="flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1">
+            <Users className="h-3.5 w-3.5" /> Max {maxPlayers}
+          </span>
+          <span className="rounded-full border border-border bg-card px-2 py-1">Replays: {maxReplays}</span>
+          <span className="rounded-full border border-border bg-card px-2 py-1">Time: {examDurationMinutes > 0 ? `${examDurationMinutes}min` : 'No limit'}</span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Users className="h-3.5 w-3.5" /> Max {maxPlayers}
-        </span>
-        <span>Replays: {maxReplays}</span>
-        <span>Time: {examDurationMinutes > 0 ? `${examDurationMinutes}min` : 'No limit'}</span>
-      </div>
-
-      <div className="w-full max-w-sm">
+      <div className="app-card p-4">
         <p className="text-sm font-semibold mb-3 flex items-center gap-1.5">
           <Users className="h-4 w-4" />
           Players ({members.length}/{maxPlayers})
         </p>
-        <div className="bg-card border border-border rounded-xl divide-y divide-border">
+        <div className="overflow-hidden rounded-lg border border-border bg-card divide-y divide-border">
           {members.map(m => {
             const isMe = m.user_id === currentUserId;
             const isMemberHost = m.user_id === hostUserId;
@@ -105,11 +106,10 @@ export function RoomLobby({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-2 md:col-span-2">
         <Button
           variant={currentMember?.is_ready ? 'outline' : 'default'}
           onClick={onReady}
-          className="rounded-xl"
         >
           {currentMember?.is_ready ? 'Cancel Ready' : 'Ready Up'}
         </Button>
@@ -118,7 +118,7 @@ export function RoomLobby({
           <Button
             onClick={onStartGame}
             disabled={!allReady}
-            className="rounded-xl gap-1.5"
+            className="gap-1.5"
           >
             <Play className="h-4 w-4 fill-current" />
             Start Game
@@ -127,11 +127,12 @@ export function RoomLobby({
       </div>
 
       {isHost && !allReady && members.length >= 2 && (
-        <p className="text-xs text-muted-foreground">All players must be ready to start</p>
+        <p className="text-xs text-muted-foreground md:col-span-2 text-right">All players must be ready to start</p>
       )}
       {members.length < 2 && (
-        <p className="text-xs text-muted-foreground">Need at least 2 players to start</p>
+        <p className="text-xs text-muted-foreground md:col-span-2 text-right">Need at least 2 players to start</p>
       )}
+      </div>
     </div>
   );
 }

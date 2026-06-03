@@ -1,12 +1,15 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  Loader2, AlertCircle, RefreshCw, Trash2, Pencil,
+  Loader2, AlertCircle, Trash2, Pencil,
   BookOpen, GraduationCap, Clock, Search, BookmarkCheck, Volume2,
+  Upload, Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CountBadge, PageContainer, PageStickyArea, PageScrollArea, PageHeader, RefreshButton } from '@/components/layout/PageShell';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose,
 } from '@/components/ui/dialog';
 import {
@@ -15,7 +18,9 @@ import {
   AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { useVocabulary, useDueCards, useUpdateWord, useDeleteWord } from '../hooks/useVocabulary';
+import { useVocabulary, useDueCards, useUpdateWord, useDeleteWord, vocabularyKeys } from '../hooks/useVocabulary';
+import { ImportVocabularyDialog } from './ImportVocabularyDialog';
+import { vocabularyService } from '../services/vocabularyService';
 import type { SavedWordResponse } from '@/shared/types/api';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,106 +65,125 @@ function WordCard({
   const isDue = review === 'Due now' || review === 'Today';
 
   return (
-    <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-sm transition-all duration-200 hover:border-primary/20 flex flex-col">
-      {/* Header */}
-      <div className="px-[var(--card-padding)] pt-[var(--card-padding)] pb-2 flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 min-w-0">
-          <div className="flex flex-col min-w-0">
-            <h3 className="text-lg font-bold text-primary leading-tight">{word.word}</h3>
-            {word.phonetic && (
-              <span className="text-sm text-muted-foreground font-mono italic">{word.phonetic}</span>
+    <div className="group flex h-full min-h-[250px] flex-col overflow-hidden rounded-[14px] border border-[color:var(--color-border)] bg-[color:var(--color-surface,var(--color-card))] text-[color:var(--color-text-primary,var(--color-foreground))] shadow-soft transition-all duration-200 hover:border-primary/30 hover:shadow-soft-lg">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="flex min-w-0 flex-col">
+              <h3 className="truncate text-xl font-extrabold leading-tight tracking-[-0.02em] text-primary">
+                {word.word}
+              </h3>
+              {word.phonetic && (
+                <span className="truncate font-mono text-sm italic text-[color:var(--color-text-muted,var(--color-muted-foreground))]">
+                  {word.phonetic}
+                </span>
+              )}
+            </div>
+            {word.audio_url && (
+              <button
+                onClick={(e) => { e.stopPropagation(); new Audio(word.audio_url!).play(); }}
+                className="shrink-0 rounded-xl p-2 text-accent-blue transition-colors hover:bg-primary-soft hover:text-primary"
+                title="Pronunciation"
+              >
+                <Volume2 className="h-4 w-4" />
+              </button>
             )}
           </div>
-          {word.audio_url && (
+          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
-              onClick={(e) => { e.stopPropagation(); new Audio(word.audio_url!).play(); }}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"
-              title="Pronunciation"
+              onClick={() => onEdit(word)}
+              className="rounded-lg p-1.5 text-[color:var(--color-text-muted,var(--color-muted-foreground))] transition-colors hover:bg-[color:var(--color-surface-muted,var(--color-muted))] hover:text-[color:var(--color-text-primary,var(--color-foreground))]"
+              title="Edit meaning/note"
             >
-              <Volume2 className="h-4 w-4" />
+              <Pencil className="h-3.5 w-3.5" />
             </button>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onEdit(word)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Edit meaning/note"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                title="Delete word"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete &ldquo;{word.word}&rdquo;?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will remove the word from your vocabulary. You can always save it again
-                  during a future dictation session.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => onDelete(word.id)}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  className="rounded-lg p-1.5 text-[color:var(--color-text-muted,var(--color-muted-foreground))] transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  title="Delete word"
                 >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete &ldquo;{word.word}&rdquo;?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove the word from your vocabulary. You can always save it again
+                    during a future dictation session.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => onDelete(word.id)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
-      </div>
 
-      {/* Body */}
-      <div className="px-[var(--card-padding)] pb-[var(--card-padding)] flex flex-col gap-2 flex-1">
+        <div className="flex flex-1 flex-col gap-3">
         {word.context_sentence && (
-          <p className="text-sm text-muted-foreground leading-relaxed italic">
+          <p
+            className="line-clamp-2 text-sm italic leading-relaxed text-[color:var(--color-text-secondary,var(--color-muted-foreground))]"
+            title={word.context_sentence}
+          >
             &ldquo;{highlightWord(word.context_sentence, word.word)}&rdquo;
           </p>
         )}
 
         {word.context_translation && (
-          <p className="text-sm text-muted-foreground/80">→ {word.context_translation}</p>
-        )}
-
-        {word.meaning && (
-          <div className="flex items-start gap-2">
-            <BookOpen className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-            <p className="text-sm text-foreground">{word.meaning}</p>
-          </div>
+          <p
+            className="line-clamp-2 text-sm text-[color:var(--color-text-muted,var(--color-muted-foreground))]"
+            title={word.context_translation}
+          >
+            → {word.context_translation}
+          </p>
         )}
 
         {word.note && (
           <div className="flex items-start gap-2">
-            <Pencil className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-            <p className="text-sm text-muted-foreground">{word.note}</p>
+            <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-orange" />
+            <p
+              className="line-clamp-2 text-sm text-[color:var(--color-text-muted,var(--color-muted-foreground))]"
+              title={word.note}
+            >
+              {word.note}
+            </p>
           </div>
         )}
+
+        {word.meaning && (
+          <div className="mt-auto flex items-center gap-2 rounded-xl bg-[color:var(--color-primary-soft)] px-3.5 py-3">
+            <BookOpen className="h-4 w-4 shrink-0 text-[color:var(--color-primary)]" />
+            <p
+              className="line-clamp-2 text-sm font-semibold leading-snug text-[color:var(--color-text-primary,var(--color-foreground))]"
+              title={word.meaning}
+            >
+              {word.meaning}
+            </p>
+          </div>
+        )}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-[var(--card-padding)] py-2 border-t border-border bg-muted/20 flex items-center justify-between">
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-[color:var(--color-border)] px-4 py-3 text-xs sm:px-5">
         <span className={cn(
-          'text-xs flex items-center gap-1',
-          isDue ? 'text-amber-600 font-medium' : 'text-muted-foreground',
+          'flex items-center gap-1 font-medium',
+          isDue ? 'text-accent-orange font-semibold' : 'text-[color:var(--color-text-muted,var(--color-muted-foreground))]',
         )}>
           <Clock className="h-3 w-3" />
           {review}
         </span>
-        {word.repetitions > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {word.repetitions}x reviewed
-          </span>
-        )}
+        <span className="shrink-0 text-[color:var(--color-text-muted,var(--color-muted-foreground))]">
+          {word.repetitions > 0 ? `${word.repetitions}x reviewed` : 'Not reviewed'}
+        </span>
       </div>
     </div>
   );
@@ -198,6 +222,9 @@ function EditWordDialog({
           <DialogTitle>
             Edit &ldquo;{word?.word}&rdquo;
           </DialogTitle>
+          <DialogDescription>
+            Update the meaning, phonetic, and notes for this saved word.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
@@ -242,6 +269,7 @@ function EditWordDialog({
 
 export function VocabularyPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: words = [], isLoading, isError, refetch } = useVocabulary();
   const { data: dueData } = useDueCards();
   const updateMutation = useUpdateWord();
@@ -250,6 +278,11 @@ export function VocabularyPage() {
 
   const [search, setSearch] = useState('');
   const [editTarget, setEditTarget] = useState<SavedWordResponse | null>(null);
+  const [showImport, setShowImport] = useState(false);
+
+  const handleExport = () => {
+    vocabularyService.exportWords();
+  };
 
   const filtered = words.filter((w) => {
     const q = search.toLowerCase();
@@ -298,78 +331,74 @@ export function VocabularyPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-full">
-      {/* Header */}
-      <div className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-10">
-        <div className="px-[var(--page-px)] py-2.5">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-lg font-semibold">Vocabulary</h1>
-              <p className="text-xs text-muted-foreground">
-                Your saved words and spaced-repetition progress
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <BookmarkCheck className="h-4 w-4" />
-                {words.length} words
-              </span>
-              <Button variant="ghost" size="icon-sm" onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4" />
+    <PageContainer>
+      <PageStickyArea>
+        <PageHeader
+          title="Vocabulary"
+          meta={(
+            <CountBadge icon={<BookmarkCheck className="h-4 w-4" />}>
+              {words.length} words
+            </CountBadge>
+          )}
+          actions={<RefreshButton onClick={() => refetch()} />}
+          toolbar={(
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-48 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search words..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-11 pl-10 pr-4 py-2 text-sm bg-card border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/25 placeholder:text-muted-foreground"
+                />
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5 h-10">
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="gap-1.5 h-10">
+                <Upload className="h-4 w-4" />
+                Import
+              </Button>
+              <Button
+                onClick={() => navigate('/vocabulary/review')}
+                className="gap-2.5 h-10"
+                size="sm"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Flashcard Review
               </Button>
             </div>
-          </div>
+          )}
+        />
 
-          {/* Action bar */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-48 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search words..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-9 pl-9 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-              />
+        {totalDue > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-accent-orange/20 bg-accent-orange/10 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-orange/15">
+                <GraduationCap className="h-5 w-5 text-accent-orange" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">
+                You have <strong>{totalDue}</strong> word{totalDue !== 1 ? 's' : ''} due for review!
+              </p>
             </div>
             <Button
-              onClick={() => navigate('/vocabulary/review')}
-              className="gap-2.5 h-10"
               size="sm"
+              onClick={() => navigate('/vocabulary/review')}
+              className="shrink-0 gap-1.5 bg-accent-orange hover:bg-accent-orange/90 text-white"
             >
-              <GraduationCap className="h-4 w-4" />
-              Flashcard Review
+              Review Now
             </Button>
           </div>
-        </div>
-      </div>
+        )}
+      </PageStickyArea>
 
-      {/* Due-review banner */}
-      {totalDue > 0 && (
-        <div className="mx-[var(--page-px)] mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-2.5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
-              <GraduationCap className="h-5 w-5 text-amber-600" />
-            </div>
-            <p className="text-sm font-medium text-amber-900">
-              You have <strong>{totalDue}</strong> word{totalDue !== 1 ? 's' : ''} due for review!
-            </p>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => navigate('/vocabulary/review')}
-            className="shrink-0 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-          >
-            Review Now
-          </Button>
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="px-[var(--page-px)] py-[var(--page-py)]">
+      <PageScrollArea>
+        <div>
         {words.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center mb-2">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card py-12 text-center shadow-soft">
+            <div className="h-12 w-12 rounded-xl bg-primary-soft flex items-center justify-center mb-3">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </div>
             <h2 className="font-semibold text-sm mb-1">No saved words yet</h2>
@@ -390,7 +419,7 @@ export function VocabularyPage() {
             <p className="text-muted-foreground text-xs mt-0.5">Try a different search term</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] items-stretch gap-4">
             {filtered.map((w) => (
               <WordCard
                 key={w.id}
@@ -401,7 +430,8 @@ export function VocabularyPage() {
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </PageScrollArea>
 
       {/* Edit dialog */}
       <EditWordDialog
@@ -411,6 +441,13 @@ export function VocabularyPage() {
         onSave={handleSaveEdit}
         isSaving={updateMutation.isPending}
       />
-    </div>
+
+      {/* Import dialog */}
+      <ImportVocabularyDialog
+        open={showImport}
+        onOpenChange={setShowImport}
+        onComplete={() => queryClient.invalidateQueries({ queryKey: vocabularyKeys.all })}
+      />
+    </PageContainer>
   );
 }

@@ -4,7 +4,7 @@ import { vocabularyService } from '@/features/vocabulary/services/vocabularyServ
 import { vocabularyKeys } from '@/features/vocabulary/hooks/useVocabulary';
 
 export function cleanForSave(word: string): string {
-  return word.toLowerCase().replace(/[^\p{L}\p{N}'\-]/gu, '');
+  return word.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, '');
 }
 
 export function useWordSave(videoId: string, source: string = 'cloze') {

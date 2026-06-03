@@ -4,7 +4,7 @@ import {
   ArrowLeft, RotateCcw, Play, Pause,
   ChevronLeft, ChevronRight, ChevronDown, Trophy,
   Loader2, AlertCircle, CheckCircle2, XCircle,
-  MinusCircle, Clock, Languages, List,
+  MinusCircle, Languages, List,
 } from 'lucide-react';
 import { YoutubePlayer } from './YoutubePlayer';
 import type { YoutubePlayerHandle } from './YoutubePlayer';
@@ -37,6 +37,22 @@ interface LocalResult {
   score: number;
   userInput: string;
   correctText: string;
+}
+
+interface DictationInputPanelProps {
+  isVerifying: boolean;
+  currentSentence: TranscriptResponse | undefined;
+  videoId: string | undefined;
+  savedWords: Set<string>;
+  previewingWord: string | null;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  inputValue: string;
+  latestDiffCheck: SentenceResultResponse | null;
+  onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onSkip: () => void;
+  onSubmit: () => void;
+  onWordClick: (word: string, contextSentence: string, startTime: number, anchorEl: HTMLElement) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -104,6 +120,181 @@ function computeErrorCaretOffset(userText: string, diffs: WordDiffItem[]): numbe
   return userText.length;
 }
 
+function KeyboardKey({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-flex min-w-[26px] min-h-[22px] items-center justify-center rounded-md border border-border/80 bg-muted/60 px-[7px] py-[2px] text-xs font-bold leading-none text-foreground shadow-[inset_0_-1px_0_rgb(18_38_58_/_0.08)]">
+      {children}
+    </kbd>
+  );
+}
+
+function ShortcutHint({
+  keys,
+  label,
+}: {
+  keys: React.ReactNode[];
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {keys.map((key, index) => (
+        <span key={index} className="inline-flex items-center gap-1">
+          {index > 0 && <span className="text-muted-foreground/50">/</span>}
+          <KeyboardKey>{key}</KeyboardKey>
+        </span>
+      ))}
+      <span className="text-xs font-semibold text-foreground/70">{label}</span>
+    </span>
+  );
+}
+
+function PracticeActionButtons({
+  isVerifying,
+  canSubmit,
+  isRetry,
+  onSkip,
+  onSubmit,
+}: {
+  isVerifying: boolean;
+  canSubmit: boolean;
+  isRetry: boolean;
+  onSkip: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto">
+      <button
+        onClick={onSkip}
+        disabled={isVerifying}
+        className="h-[34px] rounded-[10px] px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary-hover disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        Skip
+      </button>
+      <Button
+        size="sm"
+        onClick={onSubmit}
+        disabled={!canSubmit || isVerifying}
+        className="h-[34px] gap-1.5 rounded-[10px] px-4 text-[13px] font-bold transition-all active:scale-95"
+      >
+        {isVerifying ? (
+          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking</>
+        ) : isRetry ? (
+          'Retry'
+        ) : (
+          'Submit'
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function DictationInputPanel({
+  isVerifying,
+  currentSentence,
+  videoId,
+  savedWords,
+  previewingWord,
+  inputRef,
+  inputValue,
+  latestDiffCheck,
+  onInputChange,
+  onKeyDown,
+  onSkip,
+  onSubmit,
+  onWordClick,
+}: DictationInputPanelProps) {
+  const isRetry = !!latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct');
+  const feedbackScore = latestDiffCheck ? Math.round(latestDiffCheck.score * 100) : null;
+
+  return (
+    <section
+      className={cn(
+        'relative overflow-hidden rounded-[14px] border bg-card p-3.5 shadow-soft transition-all duration-200 ease-in-out',
+        isVerifying
+          ? 'border-muted-foreground/20'
+          : 'border-border focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgb(20_125_111_/_0.14),var(--shadow-soft)]',
+      )}
+    >
+      {isVerifying && (
+        <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden">
+          <div className="h-full w-1/3 bg-primary/40 animate-[indeterminate_1.5s_ease-in-out_infinite]" />
+        </div>
+      )}
+      <div
+        className={cn(
+          'min-h-10 max-h-20 overflow-y-auto rounded-lg border px-3 py-2 text-xs',
+          isRetry
+            ? 'border-accent-orange/25 bg-accent-orange/10 text-accent-orange'
+            : latestDiffCheck
+              ? 'border-[color:var(--badge-success)]/25 bg-[color:var(--badge-success)]/10 text-[color:var(--badge-success)]'
+              : 'border-border bg-primary-soft/35 text-muted-foreground',
+        )}
+      >
+        {latestDiffCheck && currentSentence && videoId ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-1.5 font-bold">
+                {isRetry ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {isRetry ? 'Fix highlighted words' : 'Looks correct'}
+              </span>
+              <span className="font-bold tabular-nums">{feedbackScore}%</span>
+            </div>
+            <div>
+              <WordSavePanel
+                text={latestDiffCheck.original_text || currentSentence.text}
+                videoId={latestDiffCheck.video_id || videoId}
+                audioStartTime={latestDiffCheck.audio_start_time || currentSentence.start_time}
+                wordDifficulty={latestDiffCheck.word_difficulty ?? {}}
+                diffs={latestDiffCheck.word_diffs}
+                savedWords={savedWords}
+                previewingWord={previewingWord}
+                onWordClick={onWordClick}
+                compact
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-7 items-center justify-between gap-3">
+            <span className="font-medium">Check your answer to see feedback here.</span>
+            <span className="hidden font-semibold text-primary-hover sm:inline">Stable feedback area</span>
+          </div>
+        )}
+      </div>
+
+      <textarea
+        ref={inputRef}
+        value={inputValue}
+        onChange={onInputChange}
+        onKeyDown={onKeyDown}
+        placeholder="Type what you hear…"
+        rows={2}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        disabled={isVerifying}
+        className="dictation-input mt-2.5 max-h-[84px] min-h-[52px] w-full resize-none rounded-xl border border-input bg-card px-3.5 py-2.5 text-base leading-[1.45] text-foreground caret-primary outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-3 focus:ring-ring/15 disabled:opacity-60 dark:bg-input/30"
+      />
+
+      <div className="mt-2.5 flex flex-col gap-2 border-t border-border pt-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <ShortcutHint keys={['Enter']} label="Check" />
+          <ShortcutHint keys={['Tab']} label="Next" />
+          <ShortcutHint keys={['H']} label="Hint" />
+          <ShortcutHint keys={['R']} label="Replay" />
+        </div>
+        <PracticeActionButtons
+          isVerifying={isVerifying}
+          canSubmit={!!inputValue.trim()}
+          isRetry={isRetry}
+          onSkip={onSkip}
+          onSubmit={onSubmit}
+        />
+      </div>
+    </section>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function DictationPage() {
@@ -128,8 +319,8 @@ export function DictationPage() {
 
   // ── API state ──────────────────────────────────────────────────────────────
   const modeParam = searchParams.get('mode') as PracticeMode | null;
-  const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(modeParam || 'sentence');
-  const [clozeDifficulty, setClozeDifficulty] = useState<ClozeDifficulty>(
+  const [practiceMode] = useState<PracticeMode | null>(modeParam || 'sentence');
+  const [clozeDifficulty] = useState<ClozeDifficulty>(
     (searchParams.get('difficulty') as ClozeDifficulty) || 'medium',
   );
   const { sessionId, sessionData } = useDictationSession(videoId, practiceMode);
@@ -263,7 +454,6 @@ export function DictationPage() {
   // ── Derived values ─────────────────────────────────────────────────────────
   const currentSentence = sentences[currentIndex];
   const totalSentences = sentences.length;
-  const sentenceProgress = totalSentences > 0 ? (currentIndex / totalSentences) * 100 : 0;
   const isLastSentence = currentIndex === totalSentences - 1;
   const latestResult = results.find((r) => r.sentenceIndex === currentIndex);
   const latestDiffCheck = serverResults.get(currentIndex) ?? null;
@@ -641,58 +831,36 @@ export function DictationPage() {
     );
   }
 
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const runningAverage = results.length > 0
-    ? Math.round(results.reduce((s, r) => s + r.score, 0) / results.length)
-    : 0;
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-background">
 
-      {/* ── Header ── */}
-      <header className="shrink-0 border-b border-border bg-card px-3 sm:px-4 py-2 flex items-center gap-2.5 z-10">
+      {/* ── HEADER — 44px ── */}
+      <header className="shrink-0 h-14 border-b border-border bg-card/95 backdrop-blur flex items-center gap-3 px-4 z-10">
         <Link
           to="/library"
-          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-primary-soft transition-colors"
           aria-label="Back to library"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xs font-semibold tracking-tight truncate">{video.title}</h1>
-        </div>
-        {/* Progress pill */}
-        <div className="flex items-center gap-2">
-          {results.length > 0 && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground tabular-nums">
-              {runningAverage}%
-            </span>
-          )}
-          <div className="hidden sm:flex items-center gap-1.5">
-            <div className="w-20 h-1 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary/60 transition-all duration-500 rounded-full"
-                style={{ width: `${sentenceProgress}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-muted-foreground tabular-nums">
-              {currentIndex + 1}/{totalSentences}
-            </span>
-          </div>
-        </div>
+        <h1 className="text-base font-bold truncate flex-1 min-w-0">{video.title}</h1>
+        <span className="text-sm font-bold text-primary-hover bg-primary-soft px-3 py-1.5 rounded-lg tabular-nums shrink-0">
+          {currentIndex + 1}/{totalSentences}
+        </span>
+
       </header>
 
-      {/* ── Body: main + sidebar ── */}
-      <div className="flex-1 overflow-hidden flex">
+      {/* ── BODY — main + right panel ── */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
 
-        {/* ── Main content column ── */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-[720px] mx-auto px-3 sm:px-4 py-3 flex flex-col gap-2.5">
+        {/* ── CENTER — main practice area ── */}
+        <main className="flex-1 min-h-0 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-3">
 
-            {/* Video player + controls row */}
-            <div className="rounded-lg overflow-hidden border border-border bg-card shrink-0 max-h-[240px] sm:max-h-[280px]">
+            {/* Video player — full width */}
+            <div className="rounded-[18px] overflow-hidden border border-border bg-card shadow-soft shrink-0">
               <YoutubePlayer
                 ref={playerHandle}
                 videoId={video.youtube_id}
@@ -702,271 +870,201 @@ export function DictationPage() {
               />
             </div>
 
-            {/* Play controls — compact inline bar */}
-            <div className="flex items-center justify-between gap-2 shrink-0 px-1">
-              <div className="flex items-center gap-1.5">
+            {/* Play controls bar */}
+            <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-3 py-2.5 shadow-soft">
+              <div className="flex items-center gap-2">
                 {isVideoPlaying && phase !== 'playing' ? (
                   <button
                     onClick={() => { playerHandle.current?.pause(); }}
-                    className="inline-flex items-center justify-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                    className="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold bg-primary-soft text-primary-hover hover:bg-primary-light/30 transition-all active:scale-95"
                   >
-                    <Pause className="h-3 w-3 fill-current" /> Pause
+                    <Pause className="h-4 w-4 fill-current" /> Pause
                   </button>
                 ) : (
                   <button
                     onClick={handlePlay}
                     disabled={phase === 'playing'}
                     className={cn(
-                      'inline-flex items-center justify-center gap-1.5 h-8 rounded-full text-xs font-medium transition-all',
+                      'inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold transition-all',
                       phase === 'playing'
-                        ? 'px-3.5 bg-primary/10 text-primary cursor-not-allowed'
-                        : 'px-3.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm active:scale-95',
+                        ? 'bg-primary-soft text-primary cursor-not-allowed'
+                        : 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm active:scale-95',
                     )}
                   >
                     {phase === 'playing' ? (
-                      <><span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" /> Playing…</>
+                      <><span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Playing…</>
                     ) : playCount === 0 ? (
-                      <><Play className="h-3.5 w-3.5 fill-current" /> Play</>
+                      <><Play className="h-4 w-4 fill-current" /> Play</>
                     ) : (
-                      <><RotateCcw className="h-3.5 w-3.5" /> Replay</>
+                      <><RotateCcw className="h-4 w-4" /> Replay</>
                     )}
                   </button>
                 )}
+
+                {/* Prev / Next */}
+                <button
+                  onClick={handlePrev}
+                  disabled={currentIndex === 0}
+                className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-primary-soft disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleNext}
+                  title="Next sentence (Tab)"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-primary-soft transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
 
+              {/* Auto-Next toggle */}
               <button
                 onClick={toggleAutoNext}
                 title={autoNext ? 'Auto-Next: On' : 'Auto-Next: Off'}
                 className={cn(
-                  'flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-full border transition-colors',
+                  'flex items-center gap-2 h-9 px-3 text-xs font-semibold rounded-xl border transition-colors',
                   autoNext
-                    ? 'border-primary/40 bg-primary/5 text-primary'
-                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
+                    ? 'border-primary/40 bg-primary-soft text-primary-hover'
+                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-primary-soft',
                 )}
               >
                 <span>Auto</span>
                 <span className={cn(
-                  'relative inline-flex h-3.5 w-6 rounded-full transition-colors duration-200',
+                  'relative inline-flex h-4 w-7 rounded-full transition-colors duration-200',
                   autoNext ? 'bg-primary' : 'bg-muted-foreground/30',
                 )}>
                   <span className={cn(
-                    'absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white shadow transition-transform duration-200',
-                    autoNext ? 'translate-x-3' : 'translate-x-0.5',
+                    'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200',
+                    autoNext ? 'translate-x-3.5' : 'translate-x-0.5',
                   )} />
                 </span>
               </button>
             </div>
 
-            {/* ── Interaction card ── */}
-            <div className={cn(
-              'bg-card rounded-lg border p-3 sm:p-3.5 flex flex-col gap-2.5 transition-colors duration-500',
-              phase === 'completed' ? 'border-[color:var(--badge-success)]/40 bg-[color:var(--badge-success)]/5' : 'border-border',
-            )}>
-              {/* Navigation bar */}
-              <div className="flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePrev}
-                    disabled={currentIndex === 0}
-                    className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="text-xs font-semibold tabular-nums">
-                    {currentIndex + 1} <span className="text-muted-foreground font-normal">/ {totalSentences}</span>
+            {/* Compact typing panel */}
+            {phase !== 'completed' && (
+              <DictationInputPanel
+                isVerifying={isVerifying}
+                currentSentence={currentSentence}
+                videoId={videoId}
+                savedWords={sentenceSavedWords}
+                previewingWord={popoverWord}
+                inputRef={inputRef}
+                inputValue={inputValue}
+                latestDiffCheck={latestDiffCheck}
+                onInputChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onSkip={handleSkip}
+                onSubmit={handleSubmit}
+                onWordClick={handleWordPopover}
+              />
+            )}
+
+            {/* Hint bar */}
+            {phase !== 'completed' && currentSentence && (
+              <DottedHintBar
+                sentence={currentSentence.text}
+                revealedIndices={revealedHintIndices}
+                onRevealWord={handleRevealHintWord}
+                onRevealAll={handleRevealAllHints}
+                allRevealed={allHintsRevealed}
+              />
+            )}
+
+            {/* Completed result */}
+            {phase === 'completed' && latestResult && (
+              <div className="flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-3">
+                  <span className={cn(
+                    'inline-flex items-center text-base font-bold px-3 py-1.5 rounded-lg animate-in zoom-in-90 duration-200',
+                    latestResult.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]'
+                      : latestResult.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]'
+                      : 'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
+                  )}>
+                    {latestResult.score}%
                   </span>
-                  <button
-                    onClick={handleNext}
-                    title="Next sentence (Tab)"
-                    className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
+                  <span className="text-sm text-muted-foreground">
+                    {latestResult.score >= 90 ? 'Excellent!' : latestResult.score >= 70 ? 'Good job' : 'Keep practicing'}
+                  </span>
+                  <Button onClick={handleNext} size="default" className="ml-auto gap-1.5 text-sm font-bold transition-all duration-200 ease-in-out active:scale-95">
+                    {isLastSentence ? (
+                      <><Trophy className="h-4 w-4" /> Results</>
+                    ) : (
+                      <>Next <ChevronRight className="h-4 w-4" /></>
+                    )}
+                  </Button>
                 </div>
-                {results.length > 0 && (
-                  <span className="text-[11px] text-muted-foreground tabular-nums">
-                    Avg <span className="font-semibold text-foreground">{runningAverage}%</span>
-                  </span>
+
+                {/* WordSavePanel */}
+                {currentSentence && videoId && (
+                  <WordSavePanel
+                    text={latestDiffCheck?.original_text || currentSentence.text}
+                    videoId={latestDiffCheck?.video_id || videoId}
+                    audioStartTime={latestDiffCheck?.audio_start_time || currentSentence.start_time}
+                    wordDifficulty={latestDiffCheck?.word_difficulty ?? {}}
+                    diffs={latestDiffCheck?.word_diffs}
+                    savedWords={sentenceSavedWords}
+                    previewingWord={popoverWord}
+                    onWordClick={handleWordPopover}
+                  />
+                )}
+
+                {/* Translation */}
+                {currentSentence?.translation && (
+                  <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                    <button
+                      onClick={() => setShowTranslation((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-primary-soft/60 transition-colors"
+                    >
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Languages className="h-4 w-4" />
+                        Translation
+                      </span>
+                      <ChevronDown className={cn(
+                        'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                        (showTranslation || latestResult.score < 70) && 'rotate-180',
+                      )} />
+                    </button>
+                    {(showTranslation || latestResult.score < 70) && (
+                      <div className="px-3 py-2.5 bg-muted/20 border-t border-border animate-in fade-in slide-in-from-top-1 duration-200">
+                        <p className="text-sm leading-relaxed text-muted-foreground italic">
+                          {currentSentence.translation}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
+            )}
 
-              {/* Phase: practicing / playing */}
-              {phase !== 'completed' && (
-                <div className="flex flex-col gap-2">
-                  {/* Live feedback diff */}
-                  {latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') && currentSentence && videoId && (
-                    <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200 shrink-0 rounded-md bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-2.5 py-2">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400">
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          Fix highlighted words
-                        </span>
-                        <span className="tabular-nums text-amber-600/80 dark:text-amber-400/70 font-semibold">
-                          {Math.round(latestDiffCheck.score * 100)}%
-                        </span>
-                      </div>
-                      <WordSavePanel
-                        text={latestDiffCheck.original_text || currentSentence.text}
-                        videoId={latestDiffCheck.video_id || videoId}
-                        audioStartTime={latestDiffCheck.audio_start_time || currentSentence.start_time}
-                        wordDifficulty={latestDiffCheck.word_difficulty ?? {}}
-                        diffs={latestDiffCheck.word_diffs}
-                        savedWords={sentenceSavedWords}
-                        previewingWord={popoverWord}
-                        onWordClick={handleWordPopover}
-                      />
-                    </div>
-                  )}
-
-                  {/* Textarea */}
-                  <div className={cn(
-                    'relative flex items-start gap-2 rounded-lg border-2 px-2.5 py-2 transition-all duration-200 bg-background shrink-0 overflow-hidden',
-                    isVerifying
-                      ? 'border-muted-foreground/20'
-                      : 'border-primary/70 focus-within:border-primary',
-                  )}>
-                    {isVerifying && (
-                      <div className="absolute inset-x-0 top-0 h-0.5 bg-primary/40 animate-[indeterminate_1.5s_ease-in-out_infinite] origin-left" />
-                    )}
-                    <textarea
-                      ref={inputRef}
-                      value={inputValue}
-                      onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Type what you hear…"
-                      rows={1}
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck={false}
-                      disabled={isVerifying}
-                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/40 resize-none leading-relaxed disabled:opacity-60 min-h-[2.5em]"
-                    />
-                    {isVerifying && (
-                      <Loader2 className="shrink-0 mt-0.5 h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    )}
-                  </div>
-
-                  {/* Dotted hint bar */}
-                  {currentSentence && (
-                    <DottedHintBar
-                      sentence={currentSentence.text}
-                      revealedIndices={revealedHintIndices}
-                      onRevealWord={handleRevealHintWord}
-                      onRevealAll={handleRevealAllHints}
-                      allRevealed={allHintsRevealed}
-                    />
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-end gap-1.5 shrink-0">
-                    {hintsUsed > 0 && (
-                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded mr-auto">
-                        {hintsUsed} hint{hintsUsed !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    <button
-                      onClick={handleSkip}
-                      disabled={isVerifying}
-                      className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1 rounded-md hover:bg-muted transition-colors"
-                    >
-                      Skip
-                    </button>
-                    <Button
-                      size="sm"
-                      onClick={handleSubmit}
-                      disabled={!inputValue.trim() || isVerifying}
-                      className="gap-1 rounded-lg h-7 px-3 text-xs"
-                    >
-                      {isVerifying ? (
-                        <><Loader2 className="h-3 w-3 animate-spin" /> Checking</>
-                      ) : latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct') ? (
-                        'Retry'
-                      ) : (
-                        <>Submit <kbd className="text-[9px] opacity-60 ml-0.5 font-mono">⌘↵</kbd></>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Phase: completed */}
-              {phase === 'completed' && latestResult && (
-                <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                  {/* Score + next inline */}
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      'inline-flex items-center text-sm font-bold px-2 py-0.5 rounded-md animate-in zoom-in-90 duration-200',
-                      latestResult.score >= 90 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]'
-                        : latestResult.score >= 70 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]'
-                        : 'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
-                    )}>
-                      {latestResult.score}%
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {latestResult.score >= 90 ? 'Excellent!' : latestResult.score >= 70 ? 'Good job' : 'Keep practicing'}
-                    </span>
-                    <Button onClick={handleNext} size="sm" className="ml-auto gap-1 rounded-lg h-7 px-3 text-xs">
-                      {isLastSentence ? (
-                        <><Trophy className="h-3.5 w-3.5" /> Results</>
-                      ) : (
-                        <>Next <ChevronRight className="h-3.5 w-3.5" /></>
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* WordSavePanel (click words → floating popover) */}
-                  {currentSentence && videoId && (
-                    <WordSavePanel
-                      text={latestDiffCheck?.original_text || currentSentence.text}
-                      videoId={latestDiffCheck?.video_id || videoId}
-                      audioStartTime={latestDiffCheck?.audio_start_time || currentSentence.start_time}
-                      wordDifficulty={latestDiffCheck?.word_difficulty ?? {}}
-                      diffs={latestDiffCheck?.word_diffs}
-                      savedWords={sentenceSavedWords}
-                      previewingWord={popoverWord}
-                      onWordClick={handleWordPopover}
-                    />
-                  )}
-
-                  {/* Translation */}
-                  {currentSentence?.translation && (
-                    <div className="rounded-lg border border-border overflow-hidden">
-                      <button
-                        onClick={() => setShowTranslation((v) => !v)}
-                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium hover:bg-muted/40 transition-colors"
-                      >
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Languages className="h-3.5 w-3.5" />
-                          Translation
-                        </span>
-                        <ChevronDown className={cn(
-                          'h-3.5 w-3.5 text-muted-foreground transition-transform duration-200',
-                          showTranslation && 'rotate-180',
-                        )} />
-                      </button>
-                      {showTranslation && (
-                        <div className="px-3 py-2 bg-muted/20 border-t border-border">
-                          <p className="text-xs leading-relaxed text-muted-foreground italic">
-                            {currentSentence.translation}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
-        </div>
+        </main>
 
-        {/* ── Segments sidebar (desktop only) ── */}
-        <div className="hidden lg:flex flex-col w-[300px] shrink-0 border-l border-border bg-card">
-          <div className="px-3 py-2 border-b border-border bg-muted/30 shrink-0 flex items-center justify-between">
-            <p className="text-xs font-semibold">Subtitles</p>
-            <span className="text-[10px] tabular-nums text-muted-foreground font-medium">{results.length}/{totalSentences}</span>
+        {/* ── RIGHT PANEL — sentence list (desktop only) ── */}
+        <aside className="hidden lg:flex flex-col w-[340px] shrink-0 border-l border-border bg-card min-h-0">
+          {/* Panel header */}
+          <div className="shrink-0 px-4 py-3 border-b border-border bg-card flex items-center justify-between">
+            <span className="text-sm font-bold">Sentences</span>
+            <span className="text-xs text-muted-foreground tabular-nums font-medium">
+              {currentIndex + 1}/{totalSentences}
+            </span>
           </div>
-          <div ref={segmentListRef} className="flex-1 overflow-y-auto">
+          {/* Progress indicator */}
+          <div className="shrink-0 px-4 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Progress</span>
+            <span className="text-xs font-semibold text-foreground tabular-nums">
+              {totalSentences > 0 ? Math.round((results.length / totalSentences) * 100) : 0}%
+            </span>
+          </div>
+          <div className="shrink-0 h-1.5 bg-primary-soft">
+            <div
+              className="h-full bg-primary rounded-lg transition-all duration-500 ease-in-out"
+              style={{ width: `${totalSentences > 0 ? (results.length / totalSentences) * 100 : 0}%` }}
+            />
+          </div>
+          {/* Scrollable card list */}
+          <div ref={segmentListRef} className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-stable">
             {sentences.map((seg, i) => {
               const result = results.find((r) => r.sentenceIndex === i);
               const isActive = i === currentIndex;
@@ -980,83 +1078,87 @@ export function DictationPage() {
                   data-live={isLive}
                   onClick={() => !isActive && setCurrentIndex(i)}
                   className={cn(
-                    'flex items-start gap-2 px-3 py-2 transition-colors border-b border-border/50',
-                    isActive && 'bg-primary/5 border-l-2 border-l-primary',
-                    isLive && !isActive && 'bg-blue-50/50 dark:bg-blue-950/20',
-                    !isActive && 'cursor-pointer hover:bg-muted/30 hover:opacity-100',
-                    !isDone && !isActive && !isLive && 'opacity-40',
+                    'rounded-xl border px-3 py-2.5 transition-all duration-200 ease-in-out cursor-pointer',
+                    isActive && 'bg-primary-soft border-primary-light ring-1 ring-primary/20 shadow-soft',
+                    isLive && !isActive && 'bg-accent-blue/10 border-accent-blue/40',
+                    isDone && !isActive && 'border-border bg-card hover:bg-primary-soft/40',
+                    !isDone && !isActive && !isLive && 'border-border/50 bg-muted/20 opacity-60 hover:opacity-85',
                   )}
                 >
-                  <div className="shrink-0 mt-0.5">
-                    {isDone ? (
-                      result!.score >= 80 ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                      ) : result!.score >= 50 ? (
-                        <MinusCircle className="h-3.5 w-3.5 text-yellow-500" />
+                  {/* Meta row */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="shrink-0 w-4.5 h-4.5 flex items-center justify-center">
+                      {isDone ? (
+                        result!.score >= 80 ? (
+                          <CheckCircle2 className="h-4.5 w-4.5 text-[color:var(--badge-success)]" />
+                        ) : result!.score >= 50 ? (
+                          <MinusCircle className="h-4.5 w-4.5 text-[color:var(--badge-warning)]" />
+                        ) : (
+                          <XCircle className="h-4.5 w-4.5 text-[color:var(--badge-danger)]" />
+                        )
+                      ) : isActive ? (
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      ) : isLive ? (
+                        <span className="h-2 w-2 rounded-full bg-accent-blue animate-pulse" />
                       ) : (
-                        <XCircle className="h-3.5 w-3.5 text-red-400" />
-                      )
-                    ) : isActive ? (
-                      <span className="h-3.5 w-3.5 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                      )}
+                    </span>
+                    <span className={cn(
+                      'text-sm font-semibold tabular-nums',
+                      isActive ? 'text-primary' : 'text-muted-foreground',
+                    )}>
+                      #{i + 1}
+                    </span>
+                    {isActive && !isDone && (
+                      <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                        Current
                       </span>
-                    ) : isLive ? (
-                      <span className="h-3.5 w-3.5 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-                      </span>
-                    ) : (
-                      <span className="h-3.5 w-3.5 flex items-center justify-center">
-                        <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                    )}
+                    <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+                      {formatTime(seg.start_time)}
+                    </span>
+                    {isDone && (
+                      <span className={cn(
+                        'text-xs font-bold px-2 py-0.5 rounded-lg',
+                        result!.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]'
+                          : result!.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]'
+                          : 'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
+                      )}>
+                        {Math.round(result!.score)}%
                       </span>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className={cn('text-[10px] font-semibold tabular-nums', isActive ? 'text-primary' : 'text-muted-foreground')}>
-                        {i + 1}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
-                        {formatTime(seg.start_time)}
-                      </span>
-                      {isDone && (
-                        <span className={cn(
-                          'ml-auto text-[10px] font-bold px-1.5 py-px rounded leading-none',
-                          result!.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]' :
-                            result!.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]' :
-                              'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
-                        )}>
-                          {Math.round(result!.score)}%
-                        </span>
-                      )}
-                    </div>
-                    <p className={cn(
-                      'text-[11px] leading-snug line-clamp-2',
-                      isDone ? 'text-foreground' : 'text-muted-foreground',
-                    )}>
-                      {isDone ? seg.text : seg.text.replace(/\S/g, '·')}
-                    </p>
-                  </div>
+                  {/* Sentence text */}
+                  <p className={cn(
+                    'text-xs leading-snug line-clamp-2',
+                    isDone ? 'text-foreground' : isActive ? 'text-foreground font-medium' : 'text-muted-foreground',
+                  )}>
+                    {isDone ? seg.text : seg.text.replace(/\S/g, '·')}
+                  </p>
                 </div>
               );
             })}
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Mobile transcript Sheet */}
-      <div className="lg:hidden fixed bottom-4 left-4 z-30">
+      {/* ── MOBILE: bottom bar ── */}
+      <div className="lg:hidden shrink-0 border-t border-border bg-card px-4 py-3 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {results.length}/{totalSentences} completed
+        </span>
         <Sheet>
           <SheetTrigger asChild>
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg">
-              <List className="h-3.5 w-3.5" />
-              {results.length}/{totalSentences}
+            <button className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary-hover transition-colors">
+              <List className="h-4 w-4" /> Sentences
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="h-[55vh] p-0 rounded-t-xl">
+          <SheetContent side="bottom" className="h-[60vh] p-0 rounded-t-3xl">
             <SheetHeader className="px-4 pt-3 pb-2 border-b border-border">
-              <SheetTitle className="text-sm">Subtitles — {results.length}/{totalSentences}</SheetTitle>
+              <SheetTitle className="text-sm">Sentences — {results.length}/{totalSentences}</SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-y-auto divide-y divide-border">
+            <div className="flex-1 overflow-y-auto p-2">
               {sentences.map((seg, i) => {
                 const result = results.find((r) => r.sentenceIndex === i);
                 const isActive = i === currentIndex;
@@ -1066,27 +1168,40 @@ export function DictationPage() {
                     key={seg.id}
                     onClick={() => setCurrentIndex(i)}
                     className={cn(
-                      'w-full flex items-start gap-2 px-4 py-2 text-left transition-colors',
-                      isActive && 'bg-primary/5',
-                      !isActive && 'hover:bg-muted/30',
+                      'w-full rounded-xl border px-4 py-3 mb-1.5 text-left transition-all duration-200',
+                      isActive && 'bg-primary/5 border-primary/40 ring-1 ring-primary/20',
+                      isDone && !isActive && 'border-border bg-card',
+                      !isDone && !isActive && 'border-border/50 bg-muted/20 opacity-50',
+                      !isActive && 'hover:border-primary/20',
                     )}
                   >
-                    <span className={cn('text-xs font-medium mt-0.5 w-5 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')}>
-                      {i + 1}
-                    </span>
-                    <span className={cn('text-xs leading-snug line-clamp-2 flex-1', isDone ? 'text-foreground' : 'text-muted-foreground')}>
-                      {isDone ? seg.text : seg.text.replace(/\S/g, '·')}
-                    </span>
-                    {isDone && result && (
+                    <div className="flex items-center gap-2 mb-1">
                       <span className={cn(
-                        'text-xs font-bold px-1.5 py-0.5 rounded-full shrink-0',
-                        result.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]' :
-                          result.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]' :
-                            'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
+                        'text-sm font-semibold tabular-nums',
+                        isActive ? 'text-primary' : 'text-muted-foreground',
                       )}>
-                        {Math.round(result.score)}%
+                        #{i + 1}
                       </span>
-                    )}
+                      <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+                        {formatTime(seg.start_time)}
+                      </span>
+                      {isDone && result && (
+                        <span className={cn(
+                          'text-xs font-bold px-2 py-0.5 rounded-lg',
+                          result.score >= 80 ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]'
+                            : result.score >= 50 ? 'bg-[color:var(--badge-warning)]/15 text-[color:var(--badge-warning)]'
+                            : 'bg-[color:var(--badge-danger)]/15 text-[color:var(--badge-danger)]',
+                        )}>
+                          {Math.round(result.score)}%
+                        </span>
+                      )}
+                    </div>
+                    <p className={cn(
+                      'text-sm leading-relaxed line-clamp-2',
+                      isDone ? 'text-foreground' : isActive ? 'text-foreground font-medium' : 'text-muted-foreground',
+                    )}>
+                      {isDone ? seg.text : seg.text.replace(/\S/g, '·')}
+                    </p>
                   </button>
                 );
               })}

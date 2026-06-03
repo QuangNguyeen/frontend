@@ -8,11 +8,14 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
+  ListChecks,
+  Percent,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageContainer, PageStickyArea, PageScrollArea, PageHeader, RefreshButton } from '@/components/layout/PageShell';
 import { useCompletedAttempts, useInProgressAttempts } from '../hooks/useHistory';
 import { cn } from '@/lib/utils';
-import { PageShell, PageHeader, EmptyState, ErrorState, SummaryStrip } from '@/components/patterns';
+import { ErrorState } from '@/components/patterns';
 import type { HistoryAttemptResponse } from '@/shared/types/api';
 
 type Tab = 'completed' | 'in-progress';
@@ -24,12 +27,26 @@ function formatDate(iso: string) {
   });
 }
 
+function parseProgress(progressStr: string): { current: number; total: number; percent: number } {
+  const [current, total] = progressStr.split('/').map(Number);
+  const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+  return {
+    current: Number.isFinite(current) ? current : 0,
+    total: Number.isFinite(total) ? total : 0,
+    percent,
+  };
+}
+
+function normalizeScore(score: number): number {
+  return score > 0 && score <= 1 ? score * 100 : score;
+}
+
 function ScoreBadge({ score }: { score: number }) {
-  const normalized = score > 0 && score <= 1 ? score * 100 : score;
+  const normalized = normalizeScore(score);
   return (
     <span
       className={cn(
-        'text-xs font-semibold px-2 py-0.5 rounded-full',
+        'inline-flex h-7 items-center rounded-lg px-3 text-xs font-bold tabular-nums',
         normalized >= 80
           ? 'bg-[color:var(--badge-success)]/15 text-[color:var(--badge-success)]'
           : normalized >= 60
@@ -44,105 +61,132 @@ function ScoreBadge({ score }: { score: number }) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-card border border-border rounded-lg p-[var(--card-padding)] animate-pulse">
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-[4.5rem] rounded-md bg-muted shrink-0" />
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft animate-pulse">
+      <div className="flex items-center gap-4">
+        <div className="h-14 w-22 rounded-xl bg-muted shrink-0" />
         <div className="flex-1 space-y-2">
-          <div className="h-3.5 w-3/4 bg-muted rounded" />
+          <div className="h-4 w-3/4 bg-muted rounded" />
           <div className="h-3 w-1/2 bg-muted rounded" />
+          <div className="h-1.5 w-full bg-muted rounded-full" />
         </div>
-        <div className="h-5 w-10 bg-muted rounded-full" />
+        <div className="h-9 w-20 bg-muted rounded-xl" />
       </div>
     </div>
   );
 }
 
-function CompletedCard({ attempt, onClick }: { attempt: HistoryAttemptResponse; onClick: () => void }) {
+function SessionStatusBadge({ status }: { status: 'completed' | 'in-progress' | 'not-started' }) {
+  const label =
+    status === 'completed' ? 'Completed' : status === 'in-progress' ? 'In progress' : 'Not started';
+  return (
+    <span
+      className={cn(
+        'inline-flex h-7 items-center rounded-lg px-3 text-xs font-bold',
+        status === 'completed' && 'bg-[color:var(--badge-success)]/12 text-[color:var(--badge-success)]',
+        status === 'in-progress' && 'bg-primary-soft text-primary-hover',
+        status === 'not-started' && 'bg-accent-orange/10 text-accent-orange',
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function SessionProgressBar({ value, completed }: { value: number; completed?: boolean }) {
+  return (
+    <div className="h-1.5 overflow-hidden rounded-lg bg-primary-soft">
+      <div
+        className={cn(
+          'h-full rounded-lg transition-[width] duration-500 ease-out',
+          completed ? 'bg-[color:var(--badge-success)]' : 'bg-primary',
+        )}
+        style={{ width: `${Math.max(0, Math.min(value, 100))}%` }}
+      />
+    </div>
+  );
+}
+
+function HistorySessionCard({
+  attempt,
+  status,
+  onAction,
+}: {
+  attempt: HistoryAttemptResponse;
+  status: 'completed' | 'in-progress';
+  onAction: () => void;
+}) {
+  const progress = parseProgress(attempt.progress_str);
+  const date = status === 'completed'
+    ? attempt.completed_at ?? attempt.updated_at
+    : attempt.updated_at;
+  const actionLabel = status === 'completed' ? 'Review' : 'Resume';
+
   return (
     <button
-      onClick={onClick}
-      className="w-full text-left bg-card border border-border rounded-lg p-[var(--card-padding)] hover:border-primary/40 hover:shadow-sm transition-all group"
+      onClick={onAction}
+      className="group w-full rounded-2xl border border-border bg-card p-4 text-left shadow-soft transition-all duration-150 hover:border-primary-light hover:shadow-soft-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
     >
-      <div className="flex items-center gap-3">
-        {attempt.video_thumbnail && (
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        {attempt.video_thumbnail ? (
           <img
             src={attempt.video_thumbnail}
             alt=""
-            className="h-11 w-[4.5rem] rounded-md object-cover bg-muted shrink-0"
+            className="h-14 w-full rounded-xl object-cover bg-muted sm:w-22 shrink-0"
             loading="lazy"
           />
+        ) : (
+          <div className="flex h-14 w-full items-center justify-center rounded-xl bg-primary-soft text-primary sm:w-22 shrink-0">
+            <BookOpen className="h-5 w-5" />
+          </div>
         )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-            {attempt.video_title}
-          </p>
-          <div className="flex items-center gap-2.5 mt-0.5 text-xs text-muted-foreground">
-            {attempt.completed_at && (
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {formatDate(attempt.completed_at)}
-              </span>
-            )}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="min-w-0 flex-1 text-base font-bold leading-snug text-foreground line-clamp-2 group-hover:text-primary-hover transition-colors">
+              {attempt.video_title}
+            </p>
+            <SessionStatusBadge status={status} />
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              {attempt.progress_str}
+              <Calendar className="h-3.5 w-3.5" />
+              {formatDate(date)}
+            </span>
+            <span className="flex items-center gap-1 tabular-nums">
+              {status === 'completed' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+              {attempt.progress_str} sentences
             </span>
           </div>
+
+          <div className="mt-3 max-w-xl">
+            <SessionProgressBar value={status === 'completed' ? 100 : progress.percent} completed={status === 'completed'} />
+          </div>
         </div>
-        <div className="shrink-0">
-          {attempt.score != null && <ScoreBadge score={attempt.score} />}
+
+        <div className="flex items-center justify-between gap-3 sm:shrink-0 sm:flex-col sm:items-end">
+          {attempt.score != null ? <ScoreBadge score={attempt.score} /> : <span />}
+          <span
+            className={cn(
+              'inline-flex h-9 items-center justify-center rounded-xl px-4 text-sm font-bold transition-colors',
+              status === 'completed'
+                ? 'bg-primary-soft text-primary-hover group-hover:bg-primary-light/35'
+                : 'bg-primary text-primary-foreground group-hover:bg-primary-hover',
+            )}
+          >
+            {status === 'in-progress' && <Play className="mr-1.5 h-3.5 w-3.5 fill-current" />}
+            {actionLabel}
+          </span>
         </div>
       </div>
     </button>
   );
 }
 
-function InProgressCard({ attempt, onResume }: { attempt: HistoryAttemptResponse; onResume: () => void }) {
-  const [current, total] = attempt.progress_str.split('/').map(Number);
-  const progress = total > 0 ? Math.round((current / total) * 100) : 0;
-
-  return (
-    <div className="bg-card border border-border rounded-lg p-[var(--card-padding)] hover:border-primary/40 hover:shadow-sm transition-all">
-      <div className="flex items-center gap-3">
-        {attempt.video_thumbnail && (
-          <img
-            src={attempt.video_thumbnail}
-            alt=""
-            className="h-11 w-[4.5rem] rounded-md object-cover bg-muted shrink-0"
-            loading="lazy"
-          />
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{attempt.video_title}</p>
-          <div className="flex items-center gap-2.5 mt-0.5 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatDate(attempt.updated_at)}
-            </span>
-            <span className="font-medium text-foreground">
-              {attempt.progress_str}
-            </span>
-          </div>
-          <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-        <Button size="sm" className="gap-1 shrink-0" onClick={onResume}>
-          <Play className="h-3 w-3" />
-          Resume
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function Pagination({ page, totalPages, onPageChange }: { page: number; totalPages: number; onPageChange: (p: number) => void }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="flex items-center justify-center gap-3 pt-3">
+    <div className="flex items-center justify-center gap-3 pt-4">
       <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)} className="gap-1">
         <ChevronLeft className="h-3.5 w-3.5" />
         Prev
@@ -158,12 +202,34 @@ function Pagination({ page, totalPages, onPageChange }: { page: number; totalPag
   );
 }
 
+function EmptyHistoryState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  const navigate = useNavigate();
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-soft">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary">
+        <BookOpen className="h-5 w-5" />
+      </div>
+      <h3 className="text-base font-bold text-foreground">{title}</h3>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
+      <Button className="mt-4" onClick={() => navigate('/library')}>
+        Start practice
+      </Button>
+    </div>
+  );
+}
+
 function CompletedTab() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, refetch } = useCompletedAttempts(page);
 
-  if (isLoading) return <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</div>;
+  if (isLoading) return <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</div>;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
 
   const items = data?.items ?? [];
@@ -171,18 +237,22 @@ function CompletedTab() {
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        title="No sessions found"
-        description="You haven't completed any dictation sessions yet. Start practicing now!"
-        action={{ label: 'Browse Videos', onClick: () => navigate('/library'), icon: <BookOpen className="h-3.5 w-3.5" /> }}
+      <EmptyHistoryState
+        title="No completed sessions yet"
+        description="Finish a dictation lesson to see it here."
       />
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {items.map((attempt) => (
-        <CompletedCard key={attempt.attempt_id} attempt={attempt} onClick={() => navigate(`/result/${attempt.attempt_id}`)} />
+        <HistorySessionCard
+          key={attempt.attempt_id}
+          attempt={attempt}
+          status="completed"
+          onAction={() => navigate(`/result/${attempt.attempt_id}`)}
+        />
       ))}
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
@@ -194,7 +264,7 @@ function InProgressTab() {
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, refetch } = useInProgressAttempts(page);
 
-  if (isLoading) return <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div>;
+  if (isLoading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div>;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
 
   const items = data?.items ?? [];
@@ -202,21 +272,21 @@ function InProgressTab() {
 
   if (items.length === 0) {
     return (
-      <EmptyState
+      <EmptyHistoryState
         title="No sessions in progress"
-        description="You don't have any sessions in progress."
-        action={{ label: 'Browse Videos', onClick: () => navigate('/library'), icon: <BookOpen className="h-3.5 w-3.5" /> }}
+        description="Start a lesson and your active work will appear here."
       />
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {items.map((attempt) => (
-        <InProgressCard
+        <HistorySessionCard
           key={attempt.attempt_id}
           attempt={attempt}
-          onResume={() => {
+          status="in-progress"
+          onAction={() => {
             const [current] = attempt.progress_str.split('/').map(Number);
             navigate(`/dictation/${attempt.video_id}`, {
               state: { resumeSessionId: attempt.attempt_id, resumeFrom: current },
@@ -234,58 +304,149 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'in-progress', label: 'In Progress' },
 ];
 
+function SummaryStatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          {label}
+        </p>
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-3 text-3xl font-extrabold leading-none tracking-[-0.03em] text-foreground tabular-nums">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ProgressSummaryStats({
+  sessions,
+  completed,
+  avgScore,
+}: {
+  sessions: number;
+  completed: number;
+  avgScore: number;
+}) {
+  return (
+    <section className="grid gap-4 sm:grid-cols-3">
+      <SummaryStatCard label="Sessions" value={sessions} icon={ListChecks} />
+      <SummaryStatCard label="Completed" value={completed} icon={CheckCircle2} />
+      <SummaryStatCard label="Avg score" value={`${avgScore}%`} icon={Percent} />
+    </section>
+  );
+}
+
+function ProgressTabs({
+  activeTab,
+  onChange,
+  completedCount,
+  inProgressCount,
+}: {
+  activeTab: Tab;
+  onChange: (tab: Tab) => void;
+  completedCount: number;
+  inProgressCount: number;
+}) {
+  const counts: Record<Tab, number> = {
+    completed: completedCount,
+    'in-progress': inProgressCount,
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="inline-flex rounded-xl border border-border bg-primary-soft p-1">
+        {TABS.map((tab) => {
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => onChange(tab.key)}
+              className={cn(
+                'flex h-10 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-bold transition-all',
+                active
+                  ? 'bg-card text-primary-hover shadow-soft'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {tab.label}
+              <span
+                className={cn(
+                  'rounded-md px-2 py-0.5 text-xs tabular-nums',
+                  active ? 'bg-primary-soft text-primary-hover' : 'bg-white/55 text-muted-foreground',
+                )}
+              >
+                {counts[tab.key]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function HistoryPage() {
   const [activeTab, setActiveTab] = useState<Tab>('completed');
-  const { data: completedData } = useCompletedAttempts(1);
-  const { data: inProgressData } = useInProgressAttempts(1);
+  const { data: completedData, refetch: refetchCompleted } = useCompletedAttempts(1);
+  const { data: inProgressData, refetch: refetchInProgress } = useInProgressAttempts(1);
 
   const totalSessions = (completedData?.total ?? 0) + (inProgressData?.total ?? 0);
   const completedItems = completedData?.items ?? [];
-  const avgScore = completedItems.length > 0
-    ? Math.round(
-        completedItems.reduce((sum, a) => {
-          const s = a.score != null ? (a.score > 0 && a.score <= 1 ? a.score * 100 : a.score) : 0;
-          return sum + s;
-        }, 0) / completedItems.filter((a) => a.score != null).length,
-      )
+  const scoredItems = completedItems.filter((a) => a.score != null);
+  const avgScore = scoredItems.length > 0
+    ? Math.round(scoredItems.reduce((sum, a) => sum + normalizeScore(a.score!), 0) / scoredItems.length)
     : 0;
 
+  const handleRefresh = () => {
+    void refetchCompleted();
+    void refetchInProgress();
+  };
+
   return (
-    <PageShell className="min-h-full">
-      <PageHeader
-        title="Practice History"
-        description="Review completed sessions or resume where you left off"
-      />
-
-      {totalSessions > 0 && (
-        <SummaryStrip
-          className="mb-3"
-          items={[
-            { label: 'sessions', value: totalSessions },
-            { label: 'completed', value: completedData?.total ?? 0 },
-            ...(avgScore > 0 ? [{ label: 'avg score', value: `${avgScore}%` }] : []),
-          ]}
+    <PageContainer>
+      <PageStickyArea>
+        <PageHeader
+          title="Learning History"
+          actions={<RefreshButton onClick={handleRefresh} />}
         />
-      )}
 
-      <div className="flex gap-1 p-0.5 bg-muted rounded-lg w-fit mb-3">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
-              activeTab === tab.key
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        <ProgressSummaryStats
+          sessions={totalSessions}
+          completed={completedData?.total ?? 0}
+          avgScore={avgScore}
+        />
 
-      {activeTab === 'completed' ? <CompletedTab /> : <InProgressTab />}
-    </PageShell>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-lg font-bold text-foreground">Sessions</p>
+            <p className="text-sm text-muted-foreground">
+              Continue practice or review previous results.
+            </p>
+          </div>
+          <ProgressTabs
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            completedCount={completedData?.total ?? 0}
+            inProgressCount={inProgressData?.total ?? 0}
+          />
+        </div>
+      </PageStickyArea>
+
+      <PageScrollArea>
+        {activeTab === 'completed' ? <CompletedTab /> : <InProgressTab />}
+      </PageScrollArea>
+    </PageContainer>
   );
 }

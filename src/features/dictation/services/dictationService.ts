@@ -28,8 +28,9 @@ export const dictationService = {
     );
     const data = res.data;
     // Backend returns session_id; normalize to id for frontend consistency
-    if (!data.id && (data as Record<string, unknown>).session_id) {
-      data.id = (data as Record<string, unknown>).session_id as string;
+    const normalized = data as unknown as Record<string, unknown>;
+    if (!data.id && normalized.session_id) {
+      data.id = normalized.session_id as string;
     }
     return data;
   },

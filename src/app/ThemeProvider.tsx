@@ -39,15 +39,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(resolved);
+    root.dataset.theme = resolved;
   }, [resolved]);
 
   useEffect(() => {
     if (theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
+      const resolvedTheme = getSystemTheme();
       const root = document.documentElement;
       root.classList.remove('light', 'dark');
-      root.classList.add(getSystemTheme());
+      root.classList.add(resolvedTheme);
+      root.dataset.theme = resolvedTheme;
     };
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);

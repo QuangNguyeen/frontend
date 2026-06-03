@@ -5,7 +5,9 @@ import { LoginPage } from '../features/auth/components/LoginPage';
 import { RegisterPage } from '../features/auth/components/RegisterPage';
 import { LibraryPage } from '../features/library/components/LibraryPage';
 import { AppLayout } from '../components/layout/AppLayout';
+import { AdminLayout } from '../components/layout/AdminLayout';
 import { ProtectedRoute } from '../components/layout/ProtectedRoute';
+import { RequireAdmin } from '../components/layout/RequireAdmin';
 
 const DictationPage = lazy(() => import('../features/dictation/components/DictationPage').then(m => ({ default: m.DictationPage })));
 const QuizPage = lazy(() => import('../features/quiz/components/QuizPage').then(m => ({ default: m.QuizPage })));
@@ -16,6 +18,11 @@ const VocabularyPage = lazy(() => import('../features/vocabulary/components/Voca
 const FlashCardPage = lazy(() => import('../features/vocabulary/components/FlashCardPage').then(m => ({ default: m.FlashCardPage })));
 const ProfilePage = lazy(() => import('../features/profile/components/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const RoomPage = lazy(() => import('../features/room/components/RoomPage').then(m => ({ default: m.RoomPage })));
+const AdminDashboard = lazy(() => import('../features/admin/components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminAnalyticsPage = lazy(() => import('../features/admin/components/analytics/AdminAnalyticsPage').then(m => ({ default: m.AdminAnalyticsPage })));
+const AdminVideosPage = lazy(() => import('../features/admin/components/videos/AdminVideosPage').then(m => ({ default: m.AdminVideosPage })));
+const AdminUsersPage = lazy(() => import('../features/admin/components/users/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
+const AdminUserDetailPage = lazy(() => import('../features/admin/components/users/AdminUserDetailPage').then(m => ({ default: m.AdminUserDetailPage })));
 
 function RouteLoader() {
     return (
@@ -48,10 +55,20 @@ export function AppRouter() {
                     <Route path="/profile" element={<SuspenseRoute><ProfilePage /></SuspenseRoute>} />
                     <Route path="/rooms" element={<SuspenseRoute><RoomPage /></SuspenseRoute>} />
                     <Route path="/rooms/:roomCode" element={<SuspenseRoute><RoomPage /></SuspenseRoute>} />
+
+                    <Route element={<RequireAdmin />}>
+                        <Route path="/admin" element={<AdminLayout />}>
+                            <Route index element={<SuspenseRoute><AdminDashboard /></SuspenseRoute>} />
+                            <Route path="analytics" element={<SuspenseRoute><AdminAnalyticsPage /></SuspenseRoute>} />
+                            <Route path="videos" element={<SuspenseRoute><AdminVideosPage /></SuspenseRoute>} />
+                            <Route path="users" element={<SuspenseRoute><AdminUsersPage /></SuspenseRoute>} />
+                            <Route path="users/:userId" element={<SuspenseRoute><AdminUserDetailPage /></SuspenseRoute>} />
+                        </Route>
+                    </Route>
                 </Route>
             </Route>
 
-            <Route path="*" element={<Navigate to="/library" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
     );
 }

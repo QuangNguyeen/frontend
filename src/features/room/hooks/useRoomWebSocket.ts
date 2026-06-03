@@ -144,7 +144,7 @@ export function useRoomWebSocket(roomCode: string | undefined): UseRoomWebSocket
       clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
-  }, [roomCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roomCode]);
 
   return {
     phase,

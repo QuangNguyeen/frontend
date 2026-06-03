@@ -32,7 +32,7 @@ function WordDiffDisplay({ diffs }: { diffs: WordDiffItem[] }) {
       {diffs.map((d, i) => {
         if (d.status === 'correct') {
           return (
-            <span key={i} className="text-green-600 font-medium">
+            <span key={i} className="text-[color:var(--badge-success)] font-medium">
               {d.word}
             </span>
           );
@@ -40,15 +40,15 @@ function WordDiffDisplay({ diffs }: { diffs: WordDiffItem[] }) {
         if (d.status === 'wrong') {
           return (
             <span key={i} className="inline-flex flex-col items-center gap-0.5 mx-0.5">
-              <span className="text-red-500 line-through text-xs">{d.word}</span>
-              {d.expected && <span className="text-green-600 text-xs font-medium">{d.expected}</span>}
+              <span className="text-destructive line-through text-xs">{d.word}</span>
+              {d.expected && <span className="text-[color:var(--badge-success)] text-xs font-medium">{d.expected}</span>}
             </span>
           );
         }
         return (
           <span key={i} className="inline-flex flex-col items-center gap-0.5 mx-0.5">
-            <span className="text-orange-400 text-xs">___</span>
-            <span className="text-green-600 text-xs font-medium">{d.word}</span>
+            <span className="text-accent-orange text-xs">___</span>
+            <span className="text-[color:var(--badge-success)] text-xs font-medium">{d.word}</span>
           </span>
         );
       })}
@@ -57,12 +57,21 @@ function WordDiffDisplay({ diffs }: { diffs: WordDiffItem[] }) {
 }
 
 function getGrade(score: number): { label: string; color: string; bg: string } {
-  if (score >= 90) return { label: 'S', color: 'text-purple-600', bg: 'bg-purple-100 border-purple-200' };
-  if (score >= 80) return { label: 'A', color: 'text-green-600', bg: 'bg-green-100 border-green-200' };
-  if (score >= 70) return { label: 'B', color: 'text-blue-600', bg: 'bg-blue-100 border-blue-200' };
-  if (score >= 60) return { label: 'C', color: 'text-yellow-600', bg: 'bg-yellow-100 border-yellow-200' };
-  return { label: 'D', color: 'text-red-500', bg: 'bg-red-100 border-red-200' };
+  if (score >= 90) return { label: 'S', color: 'text-accent-emerald', bg: 'bg-accent-emerald/10 border-accent-emerald/30' };
+  if (score >= 80) return { label: 'A', color: 'text-accent-emerald', bg: 'bg-accent-emerald/10 border-accent-emerald/30' };
+  if (score >= 70) return { label: 'B', color: 'text-accent-amber', bg: 'bg-accent-amber/10 border-accent-amber/30' };
+  if (score >= 60) return { label: 'C', color: 'text-accent-amber', bg: 'bg-accent-amber/10 border-accent-amber/30' };
+  return { label: 'D', color: 'text-destructive', bg: 'bg-destructive/10 border-destructive/30' };
 }
+
+/** Score → semantic ring color following the redesign's emerald/amber/rose logic. */
+function scoreColorVar(score: number): string {
+  if (score >= 80) return 'var(--accent-emerald)';
+  if (score >= 50) return 'var(--accent-amber)';
+  return 'var(--destructive)';
+}
+
+const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 42;
 
 // ─── Sentence Row ─────────────────────────────────────────────────────────────
 
@@ -70,7 +79,7 @@ function SentenceRow({ result, index }: { result: LocalResult; index: number }) 
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={cn('border border-border rounded-lg overflow-hidden transition-all', expanded && 'shadow-sm')}>
+    <div className={cn('border border-border rounded-2xl overflow-hidden bg-card transition-all', expanded && 'shadow-sm')}>
       <button
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
         onClick={() => setExpanded((e) => !e)}
@@ -78,23 +87,23 @@ function SentenceRow({ result, index }: { result: LocalResult; index: number }) 
         <span className="text-xs font-mono text-muted-foreground w-5 shrink-0">{index + 1}</span>
 
         {result.score >= 80 ? (
-          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+          <CheckCircle2 className="h-4 w-4 text-[color:var(--badge-success)] shrink-0" />
         ) : result.score >= 50 ? (
-          <MinusCircle className="h-4 w-4 text-yellow-500 shrink-0" />
+          <MinusCircle className="h-4 w-4 text-accent-yellow shrink-0" />
         ) : (
-          <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+          <XCircle className="h-4 w-4 text-destructive shrink-0" />
         )}
 
         <p className="text-sm flex-1 truncate text-muted-foreground">{result.correctText}</p>
 
         <span
           className={cn(
-            'text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0',
+            'text-xs font-semibold px-2 py-0.5 rounded-lg border shrink-0',
             result.score >= 80
-              ? 'bg-green-100 text-green-700 border-green-200'
+              ? 'bg-[color:var(--badge-success)]/10 text-[color:var(--badge-success)] border-[color:var(--badge-success)]/20'
               : result.score >= 50
-              ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-              : 'bg-red-100 text-red-700 border-red-200'
+              ? 'bg-accent-yellow/10 text-accent-yellow border-accent-yellow/20'
+              : 'bg-destructive/10 text-destructive border-destructive/20'
           )}
         >
           {result.score}%
@@ -162,40 +171,52 @@ export function ResultPage() {
   const poorCount = results.filter((r) => r.score < 50).length;
 
   return (
-    <div className="min-h-full bg-background">
+    <div className="app-page">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-primary/5 to-primary/10 border-b border-border">
-        <div className="max-w-2xl mx-auto px-6 py-8 flex flex-col items-center text-center">
+      <div className="border-b border-border bg-card">
+        <div className="max-w-2xl mx-auto px-6 py-7 flex flex-col items-center text-center">
           <Trophy className="h-8 w-8 text-primary mb-2" />
           <h1 className="text-xl font-bold mb-1">Session Complete!</h1>
           <p className="text-sm text-muted-foreground mb-4 max-w-xs">{video.title}</p>
 
-          {/* Score */}
-          <div
-            className={cn(
-              'h-20 w-20 rounded-full border-4 flex flex-col items-center justify-center mb-5 shadow-lg',
-              grade.bg,
-              'border-current'
-            )}
-          >
-            <span className={cn('text-2xl font-black leading-none', grade.color)}>
-              {grade.label}
-            </span>
-            <span className={cn('text-xs font-semibold', grade.color)}>{totalScore}%</span>
+          {/* Visceral score gauge */}
+          <div className="relative h-28 w-28 mb-5">
+            <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="var(--muted)" strokeWidth="8" />
+              <circle
+                cx="50"
+                cy="50"
+                r="42"
+                fill="none"
+                stroke={scoreColorVar(totalScore)}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={GAUGE_CIRCUMFERENCE}
+                strokeDashoffset={GAUGE_CIRCUMFERENCE * (1 - Math.min(Math.max(totalScore, 0), 100) / 100)}
+                className="transition-all duration-700 ease-in-out"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-extrabold leading-none tracking-[-0.03em] tabular-nums" style={{ color: scoreColorVar(totalScore) }}>
+                {totalScore}
+                <span className="text-base align-top">%</span>
+              </span>
+              <span className={cn('text-xs font-bold mt-0.5', grade.color)}>Grade {grade.label}</span>
+            </div>
           </div>
 
           {/* Quick stats */}
           <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
-            <div className="bg-card border border-border rounded-lg p-2.5 text-center">
-              <p className="text-lg font-bold text-green-600">{perfectCount}</p>
+            <div className="bg-card border border-border rounded-xl p-2.5 text-center shadow-soft transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-soft-lg">
+              <p className="text-lg font-bold text-accent-emerald tabular-nums">{perfectCount}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Perfect</p>
             </div>
-            <div className="bg-card border border-border rounded-lg p-2.5 text-center">
-              <p className="text-lg font-bold">{results.length}</p>
+            <div className="bg-card border border-border rounded-xl p-2.5 text-center shadow-soft transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-soft-lg">
+              <p className="text-lg font-bold tabular-nums">{results.length}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Total</p>
             </div>
-            <div className="bg-card border border-border rounded-lg p-2.5 text-center">
-              <p className="text-lg font-bold text-red-500">{poorCount}</p>
+            <div className="bg-card border border-border rounded-xl p-2.5 text-center shadow-soft transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-soft-lg">
+              <p className="text-lg font-bold text-destructive tabular-nums">{poorCount}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Struggled</p>
             </div>
           </div>

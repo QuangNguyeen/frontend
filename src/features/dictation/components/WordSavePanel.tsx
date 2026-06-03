@@ -12,6 +12,7 @@ interface WordSavePanelProps {
   savedWords?: Set<string>;
   previewingWord?: string | null;
   onWordClick?: (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => void;
+  compact?: boolean;
 }
 
 type TokenStatus = 'correct' | 'wrong' | 'missing' | 'masked' | 'plain';
@@ -29,7 +30,7 @@ const DIFFICULTY_THRESHOLD = 0.6;
 const EMPTY_DIFFICULTY: Record<string, number> = {};
 
 function cleanForSave(word: string): string {
-  return word.toLowerCase().replace(/[^\p{L}\p{N}'\-]/gu, '');
+  return word.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, '');
 }
 
 function wordLen(word: string): number {
@@ -100,13 +101,13 @@ function tokensFromText(text: string, difficulty: Record<string, number>): Token
 
 export function WordSavePanel({
   text,
-  videoId,
   audioStartTime,
   wordDifficulty = EMPTY_DIFFICULTY,
   diffs,
   savedWords: savedWordsProp,
   previewingWord = null,
   onWordClick,
+  compact = false,
 }: WordSavePanelProps) {
   const tokens = useMemo(
     () =>
@@ -122,12 +123,12 @@ export function WordSavePanel({
   );
   const allMissing = tokens.length > 0 && tokens.every((t) => t.status === 'missing');
   const containerClass = cn(
-    'rounded-xl px-4 py-4 border transition-colors',
-    allMissing
-      ? 'bg-amber-50/40 border-amber-200'
+    compact ? 'rounded-none border-0 bg-transparent p-0' : 'rounded-2xl px-4 py-4 border transition-colors',
+    !compact && allMissing
+      ? 'bg-accent-orange/10 border-accent-orange/20'
       : hasVisibleError
-        ? 'bg-red-50/40 border-red-200'
-        : 'bg-green-50/50 border-green-200',
+        ? !compact && 'bg-destructive/10 border-destructive/20'
+        : !compact && 'bg-[color:var(--badge-success)]/10 border-[color:var(--badge-success)]/20',
   );
   const labelText = diffs
     ? allMissing
@@ -137,26 +138,26 @@ export function WordSavePanel({
         : 'Perfect Match'
     : 'Answer';
   const labelClass = allMissing
-    ? 'text-amber-700'
+    ? 'text-accent-orange'
     : hasVisibleError
-      ? 'text-red-700'
-      : 'text-green-700';
+      ? 'text-destructive'
+      : 'text-[color:var(--badge-success)]';
 
   return (
     <div className={containerClass}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className={cn('flex items-start justify-between gap-3', compact ? 'sr-only' : 'mb-2')}>
         <p className={cn('text-xs font-semibold uppercase tracking-wide', labelClass)}>
           {labelText}
         </p>
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Lightbulb className="size-3 text-amber-500 shrink-0" />
+          <Lightbulb className="size-3 text-accent-orange shrink-0" />
           Click any word to save to flashcards
         </p>
       </div>
 
       {/* Inline paragraph — reads like natural English with colored highlights */}
-      <p className="text-lg leading-[2] text-foreground select-none">
+      <p className={cn('text-foreground select-none', compact ? 'text-sm leading-6' : 'text-lg leading-[2]')}>
         {tokens.map((tok, i) => {
           const isSaved = !!tok.clean && saved.has(tok.clean);
           const isSelected = !!tok.clean && previewingWord === tok.clean;
@@ -165,21 +166,21 @@ export function WordSavePanel({
           // Base status color (overridden by selected/saved)
           const statusClass =
             tok.status === 'wrong'
-              ? 'bg-red-100 text-red-800 border-b-2 border-red-400'
+              ? 'bg-destructive/10 text-destructive border-b-2 border-destructive/50'
               : tok.status === 'missing'
-                ? 'bg-amber-100 text-amber-900 border-b-2 border-dashed border-amber-500'
+                ? 'bg-accent-orange/10 text-accent-orange border-b-2 border-dashed border-accent-orange/60'
                 : isMasked
                   ? 'bg-muted/50 text-muted-foreground/50 font-mono tracking-widest rounded'
                   : tok.isHard
-                    ? 'underline decoration-wavy decoration-amber-400/60 underline-offset-4'
+                    ? 'underline decoration-wavy decoration-accent-orange/60 underline-offset-4'
                     : '';
 
           const interactiveClass = isSaved
-            ? 'bg-green-200/70 text-green-800 cursor-default'
+            ? 'bg-primary-soft text-primary-hover cursor-default'
             : isSelected
-              ? 'bg-yellow-200 text-yellow-900 shadow-[0_2px_0_0_theme(colors.yellow.400)]'
+              ? 'bg-accent-yellow/20 text-foreground shadow-[0_2px_0_0_var(--accent-yellow)]'
               : tok.clickable
-                ? 'hover:bg-yellow-100/60 cursor-pointer'
+                ? 'hover:bg-accent-yellow/10 cursor-pointer'
                 : 'cursor-not-allowed';
 
           return (
@@ -204,7 +205,7 @@ export function WordSavePanel({
                   (isSaved || isSelected) ? interactiveClass : cn(statusClass, interactiveClass),
                 )}
               >
-                {isSaved && <Check className="inline size-3 mr-0.5 -mt-0.5 text-green-600" />}
+                {isSaved && <Check className="inline size-3 mr-0.5 -mt-0.5 text-primary" />}
                 {tok.display}
               </span>{' '}
             </span>

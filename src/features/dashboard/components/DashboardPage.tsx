@@ -1,10 +1,23 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  PlayCircle, BookMarked, ArrowRight, AlertCircle, Flame,
+  PlayCircle,
+  BookMarked,
+  ArrowRight,
+  AlertCircle,
+  Flame,
+  CalendarDays,
+  Target,
+  Clock3,
+  CheckCircle2,
+  BarChart3,
+  Video,
+  ListChecks,
+  Percent,
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDashboard, useDashboardHistory } from '../hooks/useDashboard';
 import { useVideos } from '@/features/library/hooks/useVideos';
+import { CountBadge, PageContainer, PageStickyArea, PageScrollArea, PageHeader } from '@/components/layout/PageShell';
 import { cn } from '@/lib/utils';
 import type {
   HeatmapDay, HistoryEntryResponse, VideoResponse,
@@ -58,7 +71,7 @@ function MicroLabel({ children, className }: { children: React.ReactNode; classN
   return (
     <p
       className={cn(
-        'text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground',
+        'text-[11px] font-bold tracking-[0.12em] uppercase text-muted-foreground',
         className,
       )}
     >
@@ -67,147 +80,246 @@ function MicroLabel({ children, className }: { children: React.ReactNode; classN
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="flex-1 px-5 py-4 min-w-0">
-      <MicroLabel>{label}</MicroLabel>
-      <p className="text-xl font-semibold mt-1.5 leading-none tabular-nums tracking-tight">
-        {value}
-      </p>
-      {sub && <p className="text-sm text-muted-foreground mt-1.5 leading-snug">{sub}</p>}
-    </div>
-  );
-}
-
-/* ─── Hero ─────────────────────────────────────────────────────────────────── */
-
-function Hero({
-  streak,
-  todaySessions,
-  continueTarget,
-  continueVideo,
-  onContinue,
-  onVocabulary,
-  onLibrary,
+function DashboardCard({
+  children,
+  className,
+  style,
 }: {
-  streak: number;
-  todaySessions: number;
-  continueTarget?: HistoryEntryResponse;
-  continueVideo?: VideoResponse;
-  onContinue: () => void;
-  onVocabulary: () => void;
-  onLibrary: () => void;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
 }) {
-  const todayProgress = Math.min(todaySessions / TODAY_GOAL_SENTENCES, 1);
-  const inProgress = continueTarget && continueTarget.status !== 'completed';
-  const ctaLabel = continueTarget
-    ? inProgress ? 'Continue' : 'Start new session'
-    : 'Start your first session';
-  const ctaTitle = continueTarget?.video_title ?? 'Pick a video from your library';
-  const ctaProgressPct = inProgress ? progressToPercent(continueTarget.progress_str) : 0;
-
   return (
-    <section className="grid grid-cols-12 gap-5 lg:gap-8 items-center">
-      {/* Streak numeral — 5/12 */}
-      <div
-        className="col-span-12 lg:col-span-5 dash-enter"
-        style={{ animationDelay: '0ms' }}
-      >
-        <MicroLabel className="flex items-center gap-1.5">
-          <Flame className="h-3 w-3 text-[color:var(--accent-amber)]" />
-          Current streak
-        </MicroLabel>
-        <p
-          className="font-semibold tracking-[-0.04em] leading-[0.88] mt-2 tabular-nums text-[color:var(--accent-amber)]"
-          style={{ fontSize: 'clamp(4rem, 10vw, 7rem)' }}
-        >
-          {streak}
-        </p>
-        <div className="mt-4 max-w-sm">
-          <p className="text-sm text-foreground leading-snug">
-            <span className="text-muted-foreground">Today's goal:</span>{' '}
-            <span className="font-semibold tabular-nums">
-              {todaySessions} / {TODAY_GOAL_SENTENCES} sentences
-            </span>
-          </p>
-          <div className="mt-2 h-1.5 w-full bg-border rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[color:var(--accent-emerald)] transition-[width] duration-700 ease-out"
-              style={{ width: `${todayProgress * 100}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* CTA stack — 7/12 */}
-      <div
-        className="col-span-12 lg:col-span-7 flex flex-col gap-2.5 dash-enter"
-        style={{ animationDelay: '100ms' }}
-      >
-        <button
-          onClick={onContinue}
-          className="group relative flex items-center gap-4 h-16 px-4 bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] rounded-xl overflow-hidden shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
-        >
-          {continueVideo?.thumbnail_url ? (
-            <img
-              src={continueVideo.thumbnail_url}
-              alt=""
-              className="h-11 w-16 object-cover rounded-md shrink-0 bg-black/20"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          ) : (
-            <div className="h-11 w-16 rounded-md bg-white/15 flex items-center justify-center shrink-0">
-              <PlayCircle className="h-5 w-5" />
-            </div>
-          )}
-          <div className="flex-1 text-left min-w-0">
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase opacity-85">
-              {ctaLabel}
-            </p>
-            <p className="text-base font-semibold truncate mt-0.5 leading-tight">
-              {ctaTitle}
-            </p>
-          </div>
-          {inProgress && continueTarget?.progress_str && (
-            <span className="text-base font-semibold tabular-nums opacity-95 shrink-0">
-              {continueTarget.progress_str}
-            </span>
-          )}
-          <ArrowRight className="h-5 w-5 shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5" />
-          {inProgress && (
-            <span
-              className="absolute bottom-0 left-0 h-[2px] bg-white/80 transition-[width] duration-700 ease-out"
-              style={{ width: `${ctaProgressPct}%` }}
-            />
-          )}
-        </button>
-
-        <button
-          onClick={onVocabulary}
-          className="group flex items-center gap-3 h-12 px-4 border border-border bg-card rounded-xl transition-all duration-150 ease-out hover:border-foreground/60 hover:bg-muted/40 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <BookMarked className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium flex-1 text-left">Review vocabulary</span>
-          <ArrowRight className="h-4 w-4 shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5" />
-        </button>
-
-        <button
-          onClick={onLibrary}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors self-start mt-1 inline-flex items-center gap-1.5"
-        >
-          Browse library
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+    <section
+      className={cn(
+        'rounded-2xl border border-border bg-card shadow-soft',
+        className,
+      )}
+      style={style}
+    >
+      {children}
     </section>
   );
 }
 
-/* ─── 30-day timeline ─────────────────────────────────────────────────────── */
+function ProgressBar({
+  value,
+  className,
+  indicatorClassName,
+}: {
+  value: number;
+  className?: string;
+  indicatorClassName?: string;
+}) {
+  const pct = Math.max(0, Math.min(value, 100));
+  return (
+    <div className={cn('h-2 overflow-hidden rounded-lg bg-muted', className)}>
+      <div
+        className={cn(
+          'h-full rounded-lg bg-primary transition-[width] duration-700 ease-out',
+          indicatorClassName,
+        )}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
 
-function Timeline({
+function Badge({
+  children,
+  tone = 'neutral',
+}: {
+  children: React.ReactNode;
+  tone?: 'neutral' | 'success' | 'warning';
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-6 items-center rounded-lg px-2.5 text-xs font-bold tabular-nums',
+        tone === 'success' && 'bg-primary/10 text-primary',
+        tone === 'warning' && 'bg-[color:var(--accent-amber)]/15 text-[color:var(--accent-amber)]',
+        tone === 'neutral' && 'bg-muted text-muted-foreground',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function GoalSummaryCard({
+  streak,
+  todaySessions,
+}: {
+  streak: number;
+  todaySessions: number;
+}) {
+  const todayProgress = Math.min(todaySessions / TODAY_GOAL_SENTENCES, 1) * 100;
+  return (
+    <DashboardCard className="p-4 sm:p-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+        <div>
+          <MicroLabel className="flex items-center gap-1.5">
+            <Flame className="h-3.5 w-3.5 text-[color:var(--accent-amber)]" />
+            Current streak
+          </MicroLabel>
+          <div className="mt-3 flex items-end gap-2">
+            <span className="text-5xl font-extrabold leading-none tracking-[-0.04em] text-[color:var(--accent-amber)] tabular-nums">
+              {streak}
+            </span>
+            <span className="pb-1 text-sm font-semibold text-muted-foreground">
+              day{streak === 1 ? '' : 's'}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/25 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <MicroLabel className="flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5 text-primary" />
+              Today&apos;s goal
+            </MicroLabel>
+            <span className="text-sm font-bold tabular-nums">
+              {todaySessions}/{TODAY_GOAL_SENTENCES}
+            </span>
+          </div>
+          <ProgressBar
+            value={todayProgress}
+            className="mt-3 bg-border/60"
+            indicatorClassName="shadow-[0_0_8px_rgb(15_159_131_/_0.35)]"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            sentences completed today
+          </p>
+        </div>
+      </div>
+    </DashboardCard>
+  );
+}
+
+function ContinueLearningCard({
+  continueTarget,
+  continueVideo,
+  onContinue,
+}: {
+  continueTarget?: HistoryEntryResponse;
+  continueVideo?: VideoResponse;
+  onContinue: () => void;
+}) {
+  const inProgress = continueTarget && continueTarget.status !== 'completed';
+  const ctaTitle = continueTarget?.video_title ?? 'Pick a video from your library';
+  const progress = inProgress ? progressToPercent(continueTarget.progress_str) : 0;
+
+  return (
+    <DashboardCard className="overflow-hidden">
+      <button
+        onClick={onContinue}
+        className="group grid w-full gap-4 bg-linear-to-br from-primary to-accent-blue p-5 text-left text-white transition-all duration-150 hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[154px_minmax(0,1fr)_auto] sm:p-6"
+      >
+        {continueVideo?.thumbnail_url ? (
+          <img
+            src={continueVideo.thumbnail_url}
+            alt=""
+            className="h-32 w-full rounded-xl bg-white/15 object-cover shadow-soft sm:h-28"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="flex h-32 w-full items-center justify-center rounded-xl bg-white/15 text-white sm:h-28">
+            <PlayCircle className="h-8 w-8" />
+          </div>
+        )}
+
+        <div className="min-w-0 self-center">
+          <MicroLabel className="text-white/80">Continue learning</MicroLabel>
+          <h2 className="mt-2 truncate text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
+            {ctaTitle}
+          </h2>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {inProgress && continueTarget?.progress_str ? (
+              <span className="inline-flex h-7 items-center rounded-lg bg-white/18 px-3 text-xs font-bold tabular-nums text-white ring-1 ring-white/20">
+                {continueTarget.progress_str}
+              </span>
+            ) : (
+              <span className="inline-flex h-7 items-center rounded-lg bg-white/18 px-3 text-xs font-bold tabular-nums text-white ring-1 ring-white/20">
+                Ready to start
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/75">
+              <Clock3 className="h-3.5 w-3.5" />
+              Dictation session
+            </span>
+          </div>
+          {inProgress && (
+            <ProgressBar
+              value={progress}
+              className="mt-4 h-2.5 bg-white/20"
+              indicatorClassName="bg-white"
+            />
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 self-center sm:flex-col sm:items-end">
+          <span className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-primary-hover shadow-soft transition-transform duration-150 group-hover:-translate-y-0.5">
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </div>
+      </button>
+    </DashboardCard>
+  );
+}
+
+function ReviewVocabularyCard({ onVocabulary }: { onVocabulary: () => void }) {
+  return (
+    <button
+      onClick={onVocabulary}
+      className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-soft transition-all duration-150 hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <BookMarked className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold">Review vocabulary</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          Practice saved words before your next session
+        </span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary" />
+    </button>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <DashboardCard className="p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/25">
+      <div className="flex items-start justify-between gap-3">
+        <MicroLabel>{label}</MicroLabel>
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-3 text-2xl font-extrabold leading-none tracking-[-0.03em] tabular-nums">
+        {value}
+      </p>
+      {sub && <p className="mt-2 text-xs text-muted-foreground">{sub}</p>}
+    </DashboardCard>
+  );
+}
+
+/* ─── Activity chart ──────────────────────────────────────────────────────── */
+
+function ActivityChart({
   days,
   avgAccuracy,
 }: {
@@ -216,106 +328,154 @@ function Timeline({
 }) {
   const maxCount = Math.max(1, ...days.map((d) => d.count));
   return (
-    <section className="dash-enter" style={{ animationDelay: '200ms' }}>
-      <div className="flex items-baseline justify-between mb-3">
-        <MicroLabel>Last 30 days</MicroLabel>
-        {avgAccuracy != null && (
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {Math.round(avgAccuracy)}% avg accuracy
+    <DashboardCard className="p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <MicroLabel className="flex items-center gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5 text-primary" />
+            Last 30 days activity
+          </MicroLabel>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Daily listening sessions
           </p>
+        </div>
+        {avgAccuracy != null && (
+          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-right">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Average accuracy
+            </p>
+            <p className="mt-0.5 text-xl font-extrabold leading-none tabular-nums">
+              {Math.round(avgAccuracy)}%
+            </p>
+          </div>
         )}
       </div>
-      <div className="flex items-end gap-[3px] h-20 border-t border-b border-border py-3">
-        {days.map((d, i) => {
-          const h = d.count > 0 ? Math.max(10, (d.count / maxCount) * 72) : 3;
-          const color =
-            d.level >= 3 ? 'var(--accent-emerald)' :
-            d.level >= 1 ? 'var(--accent-amber)' :
-            'var(--border)';
-          return (
-            <div
-              key={d.date}
-              className="flex-1 min-w-0 rounded-[2px] dash-bar transition-[filter,transform] duration-150 ease-out hover:brightness-90"
-              style={{
-                height: `${h}px`,
-                backgroundColor: color,
-                animationDelay: `${240 + i * 14}ms`,
-              }}
-              title={`${formatMonthDay(d.date)} · ${d.count} session${d.count === 1 ? '' : 's'}`}
-            />
-          );
-        })}
+
+      <div className="mt-5 rounded-xl border border-border bg-background/60 p-3">
+        <div className="grid h-28 [grid-template-columns:repeat(30,minmax(0,1fr))] items-end gap-1">
+          {days.map((d, i) => {
+            const h = d.count > 0 ? Math.max(14, (d.count / maxCount) * 100) : 4;
+            const color =
+              d.level >= 3 ? 'bg-primary' :
+              d.level >= 2 ? 'bg-primary-light' :
+              d.level >= 1 ? 'bg-accent-yellow' :
+              'bg-primary-soft';
+            return (
+              <div
+                key={d.date}
+                className="flex h-full items-end"
+                title={`${formatMonthDay(d.date)} · ${d.count} session${d.count === 1 ? '' : 's'}`}
+              >
+                <div
+                  className={cn(
+                    'w-full rounded-t-md dash-bar transition-all duration-150 hover:brightness-95',
+                    color,
+                  )}
+                  style={{
+                    height: `${h}%`,
+                    animationDelay: `${120 + i * 12}ms`,
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <div className="flex items-baseline justify-between mt-3 flex-wrap gap-y-2">
-        <p className="text-xs tabular-nums text-muted-foreground">
-          {formatMonthDay(days[0].date)}
-        </p>
-        <div className="flex items-center gap-5 text-xs text-muted-foreground">
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span className="tabular-nums">{formatMonthDay(days[0].date)}</span>
+        <div className="flex items-center gap-4">
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-[color:var(--accent-amber)]" />
+            <span className="h-2.5 w-2.5 rounded-sm bg-accent-yellow" />
             active
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-[color:var(--accent-emerald)]" />
-            high intensity
+            <span className="h-2.5 w-2.5 rounded-sm bg-primary-light" />
+            great
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-primary" />
+            peak
           </span>
         </div>
-        <p className="text-xs tabular-nums text-muted-foreground">Today</p>
+        <span>Today</span>
       </div>
-    </section>
+    </DashboardCard>
+  );
+}
+
+function RecentSessionRow({
+  entry,
+  video,
+  onOpen,
+}: {
+  entry: HistoryEntryResponse;
+  video?: VideoResponse;
+  onOpen: () => void;
+}) {
+  const clickable = !!video;
+  const isCompleted = entry.status === 'completed';
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={clickable ? onOpen : undefined}
+        disabled={!clickable}
+        className={cn(
+          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left transition-all duration-150 sm:grid-cols-[86px_minmax(0,1fr)_auto_auto]',
+          clickable && 'hover:border-border hover:bg-muted/35',
+          !clickable && 'cursor-default',
+        )}
+      >
+        <span className="hidden text-xs font-semibold tabular-nums text-muted-foreground sm:block">
+          {formatMonthDay(entry.completed_at ?? entry.updated_at)}
+        </span>
+        <span className="flex min-w-0 items-center gap-3">
+          <span className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+            isCompleted ? 'bg-primary/10 text-primary' : 'bg-[color:var(--accent-amber)]/15 text-[color:var(--accent-amber)]',
+          )}>
+            {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-bold">{entry.video_title}</span>
+            <span className="block text-xs text-muted-foreground sm:hidden">
+              {formatMonthDay(entry.completed_at ?? entry.updated_at)}
+            </span>
+          </span>
+        </span>
+        <Badge tone={isCompleted ? 'success' : 'warning'}>
+          {isCompleted ? 'Done' : entry.progress_str}
+        </Badge>
+        {entry.score != null && (
+          <span className="hidden w-14 text-right text-sm font-extrabold tabular-nums sm:block">
+            {Math.round(entry.score)}%
+          </span>
+        )}
+      </button>
+    </li>
   );
 }
 
 /* ─── Skeletons ───────────────────────────────────────────────────────────── */
 
-function HeroSkeleton() {
+function DashboardSkeleton() {
   return (
-    <section className="grid grid-cols-12 gap-5 lg:gap-8 items-center animate-pulse">
-      <div className="col-span-12 lg:col-span-5">
-        <div className="h-3 w-32 bg-muted rounded" />
-        <div
-          className="mt-2 bg-muted rounded"
-          style={{ height: 'clamp(3.5rem, 8vw, 6rem)', width: '60%' }}
-        />
-        <div className="mt-3 h-4 w-48 bg-muted rounded" />
-        <div className="mt-2 h-1 w-full max-w-xs bg-muted rounded" />
+    <div className="animate-pulse space-y-6">
+      <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="h-56 rounded-2xl border border-border bg-card shadow-soft" />
+        <div className="space-y-4">
+          <div className="h-40 rounded-2xl border border-border bg-card shadow-soft" />
+          <div className="h-20 rounded-2xl border border-border bg-card shadow-soft" />
+        </div>
       </div>
-      <div className="col-span-12 lg:col-span-7 flex flex-col gap-2.5">
-        <div className="h-16 bg-muted rounded-xl" />
-        <div className="h-12 bg-muted/60 rounded-xl" />
-      </div>
-    </section>
-  );
-}
-
-function TimelineSkeleton() {
-  return (
-    <section className="animate-pulse">
-      <div className="h-3 w-24 bg-muted rounded mb-4" />
-      <div className="flex items-end gap-[3px] h-24 border-t border-b border-border py-3">
-        {Array.from({ length: 30 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex-1 bg-muted rounded-[2px]"
-            style={{ height: `${10 + ((i * 7) % 55)}px` }}
-          />
+      <div className="h-56 rounded-2xl border border-border bg-card shadow-soft" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-32 rounded-2xl border border-border bg-card shadow-soft" />
         ))}
       </div>
-    </section>
-  );
-}
-
-function StatsSkeleton() {
-  return (
-    <section className="flex divide-x divide-border border-y border-border bg-card rounded-xl shadow-soft animate-pulse overflow-hidden">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex-1 px-5 py-4">
-          <div className="h-3 w-24 bg-muted rounded" />
-          <div className="h-6 w-20 bg-muted rounded mt-2" />
-          <div className="h-3 w-28 bg-muted rounded mt-2" />
-        </div>
-      ))}
-    </section>
+    </div>
   );
 }
 
@@ -346,68 +506,69 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="min-h-full bg-background">
-      {/* Greeting bar */}
-      <header
-        className="border-b border-border bg-card px-[var(--page-px)] sm:px-8 py-3 flex items-baseline justify-between gap-4 dash-enter"
-        style={{ animationDelay: '0ms' }}
-      >
-        <h1 className="text-lg font-semibold tracking-tight">
-          {greeting}, {displayName}.
-        </h1>
-        <p className="text-xs font-medium tracking-[0.1em] uppercase text-muted-foreground shrink-0">
-          {new Date().toLocaleDateString('en-US', {
-            weekday: 'long', month: 'long', day: 'numeric',
-          })}
-        </p>
-      </header>
+    <PageContainer>
+      <PageStickyArea>
+        <PageHeader
+          title={`${greeting}, ${displayName}.`}
+          actions={(
+            <CountBadge icon={<CalendarDays className="h-4 w-4 text-primary" />}>
+              {new Date().toLocaleDateString('en-US', {
+              weekday: 'long', month: 'long', day: 'numeric',
+            })}
+            </CountBadge>
+          )}
+        />
+      </PageStickyArea>
 
-      <div className="px-[var(--page-px)] sm:px-8 py-[var(--page-py)] max-w-[1240px] space-y-6">
+      <PageScrollArea>
 
         {isError ? (
-          <div className="flex items-center gap-2 text-destructive text-sm">
+          <DashboardCard className="flex items-center gap-2 p-4 text-sm text-destructive">
             <AlertCircle className="h-4 w-4" /> Failed to load dashboard
-          </div>
+          </DashboardCard>
         ) : isLoading ? (
-          <>
-            <HeroSkeleton />
-            <TimelineSkeleton />
-            <StatsSkeleton />
-          </>
+          <DashboardSkeleton />
         ) : (
           <>
-            <Hero
-              streak={stats?.current_streak ?? 0}
-              todaySessions={todaySessions}
-              continueTarget={continueTarget}
-              continueVideo={continueVideo}
-              onContinue={goContinue}
-              onVocabulary={() => navigate('/vocabulary')}
-              onLibrary={() => navigate('/library')}
-            />
+            <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+              <GoalSummaryCard
+                streak={stats?.current_streak ?? 0}
+                todaySessions={todaySessions}
+              />
+              <div className="flex flex-col gap-4">
+                <ContinueLearningCard
+                  continueTarget={continueTarget}
+                  continueVideo={continueVideo}
+                  onContinue={goContinue}
+                />
+                <ReviewVocabularyCard onVocabulary={() => navigate('/vocabulary')} />
+              </div>
+            </section>
 
-            <Timeline days={last30} avgAccuracy={stats?.average_accuracy} />
+            <ActivityChart days={last30} avgAccuracy={stats?.average_accuracy} />
 
             {stats && (
-              <section
-                className="flex divide-x divide-border border-y border-border bg-card rounded-xl shadow-soft dash-enter overflow-hidden"
-                style={{ animationDelay: '300ms' }}
-              >
-                <Stat
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                  icon={ListChecks}
                   label="Sessions"
                   value={`${stats.total_sessions}`}
                   sub={`${stats.total_time_minutes} min total`}
                 />
-                <Stat
+                <StatCard
+                  icon={Percent}
                   label="Accuracy"
                   value={`${Math.round(stats.average_accuracy)}%`}
                   sub="All-time avg"
                 />
-                <Stat
+                <StatCard
+                  icon={Target}
                   label="Sentences"
                   value={`${stats.total_sentences}`}
+                  sub="Completed lines"
                 />
-                <Stat
+                <StatCard
+                  icon={Video}
                   label="Videos"
                   value={`${stats.total_videos}`}
                   sub={`Longest streak: ${stats.longest_streak}d`}
@@ -418,12 +579,17 @@ export function DashboardPage() {
         )}
 
         {/* Recent sessions */}
-        <section className="dash-enter" style={{ animationDelay: '400ms' }}>
-          <div className="flex items-baseline justify-between mb-3">
-            <MicroLabel>Recent sessions</MicroLabel>
+        <DashboardCard className="dash-enter p-4 sm:p-5" style={{ animationDelay: '400ms' }}>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <MicroLabel>Recent sessions</MicroLabel>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Your latest listening practice
+              </p>
+            </div>
             <button
               onClick={() => navigate('/history')}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary/30 hover:text-primary"
             >
               View all
               <ArrowRight className="h-3.5 w-3.5" />
@@ -431,20 +597,20 @@ export function DashboardPage() {
           </div>
 
           {historyLoading ? (
-            <ul className="border-t border-border animate-pulse">
+            <ul className="space-y-2 animate-pulse">
               {Array.from({ length: 4 }).map((_, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-4 border-b border-border py-3.5 px-3"
+                  className="grid grid-cols-[86px_minmax(0,1fr)_72px] items-center gap-3 rounded-xl border border-border px-3 py-3"
                 >
-                  <div className="h-3 w-14 bg-muted rounded" />
-                  <div className="h-4 flex-1 bg-muted rounded" />
-                  <div className="h-4 w-14 bg-muted rounded" />
+                  <div className="h-3 w-14 rounded bg-muted" />
+                  <div className="h-4 rounded bg-muted" />
+                  <div className="h-6 rounded-full bg-muted" />
                 </li>
               ))}
             </ul>
           ) : history.length === 0 ? (
-            <div className="border-t border-b border-border py-6 text-center bg-card rounded-xl">
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 py-8 text-center">
               <div className="h-8 w-8 mx-auto rounded-full border border-border flex items-center justify-center mb-2">
                 <PlayCircle className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
@@ -454,45 +620,22 @@ export function DashboardPage() {
               </p>
             </div>
           ) : (
-            <ul className="border-t border-border">
+            <ul className="space-y-1">
               {history.map((h) => {
                 const video = findVideoForHistory(h, videos);
-                const clickable = !!video;
                 return (
-                  <li
+                  <RecentSessionRow
                     key={h.id}
-                    onClick={clickable ? () => navigate(`/dictation/${video!.id}`) : undefined}
-                    className={cn(
-                      'flex items-center gap-4 border-b border-border py-3.5 px-3 -mx-3 rounded-md transition-colors duration-150 ease-out',
-                      clickable && 'cursor-pointer hover:bg-muted/60',
-                    )}
-                  >
-                    <p className="text-sm tabular-nums text-muted-foreground w-16 shrink-0">
-                      {formatMonthDay(h.completed_at ?? h.updated_at)}
-                    </p>
-                    <p className="flex-1 text-base font-medium truncate">{h.video_title}</p>
-                    <p
-                      className={cn(
-                        'text-sm tabular-nums shrink-0',
-                        h.status === 'completed'
-                          ? 'text-muted-foreground'
-                          : 'text-[color:var(--accent-amber)] font-semibold',
-                      )}
-                    >
-                      {h.status === 'completed' ? 'Done' : h.progress_str}
-                    </p>
-                    {h.score != null && (
-                      <p className="text-base font-semibold tabular-nums w-14 text-right shrink-0">
-                        {Math.round(h.score)}%
-                      </p>
-                    )}
-                  </li>
+                    entry={h}
+                    video={video}
+                    onOpen={() => navigate(`/dictation/${video!.id}`)}
+                  />
                 );
               })}
             </ul>
           )}
-        </section>
-      </div>
-    </div>
+        </DashboardCard>
+      </PageScrollArea>
+    </PageContainer>
   );
 }

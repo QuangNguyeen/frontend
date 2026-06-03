@@ -52,7 +52,7 @@ export function WordPopover({
     }
 
     reposition();
-    setPositioned(true);
+    queueMicrotask(() => setPositioned(true));
     window.addEventListener('scroll', reposition, true);
     window.addEventListener('resize', reposition);
     return () => {

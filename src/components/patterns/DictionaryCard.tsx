@@ -14,7 +14,7 @@ const POS_COLORS: Record<string, string> = {
   'proper noun': 'border-indigo-400/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
 };
 
-export function posColor(pos: string): string {
+function posColor(pos: string): string {
   return POS_COLORS[pos.toLowerCase()] ?? 'border-border bg-muted/50 text-muted-foreground';
 }
 
@@ -195,7 +195,7 @@ function PosSection({ raw }: { raw: string }) {
 
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      {entries.flatMap((e) => e.split(/[,\/]+/)).map((s) => s.trim()).filter(Boolean).map((p) => (
+      {entries.flatMap((e) => e.split(/[,/]+/)).map((s) => s.trim()).filter(Boolean).map((p) => (
         <span
           key={p}
           className={cn(

@@ -14,7 +14,7 @@ export function SummaryStrip({ items, className }: SummaryStripProps) {
   return (
     <div
       className={cn(
-        'flex items-center gap-4 px-3 py-2 rounded-lg bg-muted/50 text-xs text-muted-foreground',
+        'flex items-center gap-4 px-3 py-2 rounded-lg border border-border bg-card text-xs text-muted-foreground shadow-soft',
         className,
       )}
     >

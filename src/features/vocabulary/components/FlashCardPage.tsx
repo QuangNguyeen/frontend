@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Loader2, RotateCcw, PartyPopper, ArrowLeft, Volume2, Eye,
+  Loader2, RotateCcw, PartyPopper, ArrowLeft, Volume2, Eye, BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -11,10 +11,10 @@ import type { FlashCardResponse } from '@/shared/types/api';
 // ─── Grading palette ─────────────────────────────────────────────────────────
 
 const GRADES = [
-  { quality: 1, label: 'Again',color: 'bg-red-500 hover:bg-red-600', ring: 'focus-visible:ring-red-400' },
-  { quality: 2, label: 'Difficult', color: 'bg-orange-500 hover:bg-orange-600', ring: 'focus-visible:ring-orange-400' },
-  { quality: 3, label: 'Good', color: 'bg-green-500 hover:bg-green-600', ring: 'focus-visible:ring-green-400' },
-  { quality: 4, label: 'Easy', color: 'bg-blue-500 hover:bg-blue-600', ring: 'focus-visible:ring-blue-400' },
+  { quality: 1, label: 'Again', color: 'bg-destructive hover:bg-destructive/90', ring: 'focus-visible:ring-destructive/40' },
+  { quality: 2, label: 'Hard', color: 'bg-accent-orange hover:bg-accent-orange/90', ring: 'focus-visible:ring-accent-orange/40' },
+  { quality: 3, label: 'Good', color: 'bg-primary hover:bg-primary-hover', ring: 'focus-visible:ring-primary/40' },
+  { quality: 4, label: 'Easy', color: 'bg-[color:var(--badge-success)] hover:bg-[color:var(--badge-success)]/90', ring: 'focus-visible:ring-[color:var(--badge-success)]/40' },
 ] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -70,7 +70,11 @@ function FlashCard({
     const audio = new Audio(audio_url);
     audioRef.current = audio;
     audio.play().catch((err) => {
-      console.warn('[FlashCard] Autoplay blocked:', err);
+      // AbortError is expected when the card changes and cleanup pauses the
+      // still-pending play() promise — not an actual failure.
+      if (err?.name !== 'AbortError') {
+        console.warn('[FlashCard] Autoplay blocked:', err);
+      }
     });
 
     return () => {
@@ -79,64 +83,78 @@ function FlashCard({
   }, [card.id, audio_url, stopAudio]);
 
   return (
-    <div className="w-full max-w-lg mx-auto">
-      <div className="rounded-2xl border border-border bg-card shadow-xl px-6 py-8 flex flex-col items-center gap-5 min-h-[300px]">
-        <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          What does this word mean?
-        </span>
+    <div className="w-full max-w-xl mx-auto">
+      <div className="card-flip-in flex min-h-[380px] flex-col rounded-[18px] border border-[color:var(--color-border)] bg-[color:var(--color-surface,var(--color-card))] px-6 py-7 text-[color:var(--color-text-primary,var(--color-foreground))] shadow-soft-lg sm:px-8">
+        <div className="flex flex-col items-center gap-4">
+          <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-text-muted,var(--color-muted-foreground))]">
+            What does this word mean?
+          </span>
 
-        <h2 className="text-3xl sm:text-4xl font-semibold text-foreground tracking-tight text-center">
-          {card.word}
-        </h2>
+          <h2 className="max-w-full text-center text-4xl font-extrabold tracking-[-0.03em] text-[color:var(--color-text-primary,var(--color-foreground))] sm:text-5xl">
+            {card.word}
+          </h2>
 
-        {phonetic && (
-          <p className="text-base text-muted-foreground font-mono italic">{phonetic}</p>
-        )}
+          {phonetic && (
+            <p className="max-w-full truncate font-mono text-base italic text-[color:var(--color-text-muted,var(--color-muted-foreground))]">
+              {phonetic}
+            </p>
+          )}
 
-        {audio_url && (
-          <button
-            onClick={playAudio}
-            className="p-2 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-            title="Play pronunciation"
-          >
-            <Volume2 className="size-5" />
-          </button>
-        )}
+          {audio_url && (
+            <button
+              onClick={playAudio}
+              className="rounded-xl p-3 text-accent-blue transition-colors hover:bg-primary-soft hover:text-primary"
+              title="Play pronunciation"
+            >
+              <Volume2 className="size-5" />
+            </button>
+          )}
 
-        {card.context_sentence && (
-          <p className="text-sm text-muted-foreground leading-relaxed text-center max-w-md italic">
-            &ldquo;{isFlipped ? card.context_sentence : censorWord(card.context_sentence, card.word)}&rdquo;
-          </p>
-        )}
+          {card.context_sentence && (
+            <p
+              className="line-clamp-2 max-w-md text-center text-base italic leading-relaxed text-[color:var(--color-text-secondary,var(--color-muted-foreground))]"
+              title={card.context_sentence}
+            >
+              &ldquo;{isFlipped ? card.context_sentence : censorWord(card.context_sentence, card.word)}&rdquo;
+            </p>
+          )}
+        </div>
 
         {isFlipped && (
-          <div className="w-full flex flex-col items-center gap-3 pt-3 border-t border-border animate-in fade-in slide-in-from-bottom-2 duration-200">
-            {card.meaning ? (
-              <p className="text-lg text-center text-primary font-semibold leading-snug max-w-md">
-                {card.meaning}
-              </p>
-            ) : (
-              <p className="text-sm text-center text-muted-foreground italic">
-                No meaning saved yet
-              </p>
-            )}
+          <div className="mt-auto w-full animate-in fade-in slide-in-from-bottom-2 pt-6 duration-200">
+            <div className="flex items-center gap-3 rounded-xl bg-[color:var(--color-primary-soft)] px-4 py-3">
+              <BookOpen className="size-4 shrink-0 text-[color:var(--color-primary)]" />
+              {card.meaning ? (
+                <p
+                  className="line-clamp-2 text-sm font-semibold leading-snug text-[color:var(--color-text-primary,var(--color-foreground))]"
+                  title={card.meaning}
+                >
+                  {card.meaning}
+                </p>
+              ) : (
+                <p className="text-sm italic text-[color:var(--color-text-muted,var(--color-muted-foreground))]">
+                  No meaning saved yet
+                </p>
+              )}
+            </div>
 
             {context_translation && (
-              <p className="text-sm text-muted-foreground text-center max-w-md">
+              <p
+                className="mt-3 line-clamp-2 text-center text-sm text-[color:var(--color-text-muted,var(--color-muted-foreground))]"
+                title={context_translation}
+              >
                 → {context_translation}
               </p>
             )}
           </div>
         )}
 
-        <div className="flex-1" />
-
         {!isFlipped ? (
-          <>
+          <div className="mt-auto flex flex-col items-center gap-3 pt-6">
             <Button
               size="lg"
               onClick={onFlip}
-              className="w-full max-w-xs rounded-xl gap-2 h-10 text-sm shadow-md"
+              className="w-full max-w-xs gap-2"
             >
               <Eye className="size-4" />
               Show Answer
@@ -144,9 +162,9 @@ function FlashCard({
             <span className="text-[11px] text-muted-foreground">
               or press <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted text-xs font-mono">Space</kbd>
             </span>
-          </>
+          </div>
         ) : (
-          <div className="w-full flex flex-col gap-2">
+          <div className="mt-5 flex w-full flex-col gap-2">
             <span className="text-[11px] text-muted-foreground text-center">
               How well did you know this?
             </span>
@@ -157,7 +175,7 @@ function FlashCard({
                   onClick={() => onGrade(g.quality)}
                   disabled={isGrading}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-0.5 h-8 rounded-xl text-white font-semibold transition-all',
+                    'flex flex-col items-center justify-center gap-0.5 h-10 rounded-xl text-white font-bold transition-all',
                     'active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                     'disabled:opacity-60 disabled:pointer-events-none',
                     g.color,
@@ -270,8 +288,8 @@ export function FlashCardPage() {
   if (isEmpty || isFinished) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full gap-4 px-6 text-center">
-        <div className="size-14 rounded-full bg-green-100 flex items-center justify-center">
-          <PartyPopper className="size-7 text-green-600" />
+        <div className="size-16 rounded-2xl bg-primary-soft flex items-center justify-center">
+          <PartyPopper className="size-7 text-primary" />
         </div>
         <h2 className="text-lg font-semibold">
           {isFinished ? 'Great job!' : 'All caught up!'}
@@ -307,24 +325,24 @@ export function FlashCardPage() {
   // ── Active review ─────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="app-page flex min-h-full flex-col">
       {/* Top bar */}
-      <div className="shrink-0 border-b border-border bg-background/95 backdrop-blur">
-        <div className="px-4 py-3 flex items-center justify-between">
+      <div className="shrink-0 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto max-w-[1120px] px-4 sm:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-4" />
             Back
           </button>
-          <h1 className="text-sm font-semibold">Flashcard Review</h1>
-          <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium tabular-nums">
+          <h1 className="text-base font-bold">Flashcard Review</h1>
+          <span className="text-xs text-primary-hover bg-primary-soft px-3 py-1.5 rounded-lg font-bold tabular-nums">
             {currentIndex + 1} / {cards.length}
           </span>
         </div>
         {/* Progress bar */}
-        <div className="h-1 bg-muted">
+        <div className="h-1.5 bg-primary-soft">
           <div
             className="h-full bg-primary transition-all duration-500 ease-out"
             style={{ width: `${(currentIndex / cards.length) * 100}%` }}
@@ -333,7 +351,7 @@ export function FlashCardPage() {
       </div>
 
       {/* Card area */}
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
+      <div className="flex-1 flex items-center justify-center px-4 py-8 sm:py-10">
         {currentCard && (
           <FlashCard
             card={currentCard}

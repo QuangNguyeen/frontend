@@ -6,6 +6,7 @@ export interface UserResponse {
   display_name: string;
   preferred_language: string;
   streak_days: number;
+  is_admin: boolean;
 }
 
 export interface TokenResponse {
@@ -45,6 +46,7 @@ export interface UserProfileResponse {
   id: string;
   email: string;
   display_name: string;
+  is_admin: boolean;
   preferred_language: string;
   preferences: UserPreferences;
   created_at: string;
@@ -66,6 +68,9 @@ export interface VideoResponse {
   duration: number;
   language: string;
   level: string | null;
+  difficulty_score?: number | null;
+  difficulty_level?: string | null;
+  difficulty_label?: string | null;
   is_curated: boolean;
   is_active: boolean;
   is_auto_generated: boolean;
@@ -74,6 +79,158 @@ export interface VideoResponse {
   thumbnail_url: string;
   play_count: number;
   best_score: number | null;
+}
+
+// ─── Admin ──────────────────────────────────────────────────────────────────
+
+export interface AdminStatsResponse {
+  total_users: number;
+  total_videos: number;
+  total_sessions: number;
+  total_vocabulary_words: number;
+  pending_transcriptions: number;
+  failed_transcriptions: number;
+  new_users_today: number;
+  sessions_today: number;
+}
+
+export interface AdminVideoResponse extends VideoResponse {
+  difficulty_factors?: Record<string, unknown> | null;
+  created_by: string | null;
+  created_by_email: string | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface AdminVideoListResponse {
+  items: AdminVideoResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
+
+export interface AdminPatchVideoRequest {
+  is_active?: boolean;
+  is_curated?: boolean;
+  level?: string | null;
+}
+
+export interface AdminRetryTranscriptionResponse {
+  video_id: string;
+  status: string;
+  task_id: string | null;
+}
+
+export interface AdminDifficultyRecalculationResponse {
+  video_id: string;
+  difficulty_score: number;
+  difficulty_level: string;
+  difficulty_label: string;
+  factors: Record<string, unknown>;
+  explanation: string[];
+  recommendedModes: Record<string, boolean>;
+}
+
+export interface AdminUserResponse {
+  id: string;
+  email: string;
+  display_name: string;
+  preferred_language: string;
+  streak_days: number;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+  total_sessions: number;
+  total_vocabulary: number;
+}
+
+export interface AdminUserDetailResponse extends AdminUserResponse {
+  stats: UserStatsBlock;
+}
+
+export interface AdminUserListResponse {
+  items: AdminUserResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
+
+export interface AdminPatchUserRequest {
+  is_admin?: boolean;
+  is_active?: boolean;
+  email?: string;
+  password?: string;
+}
+
+// ─── Admin Analytics ────────────────────────────────────────────────────────
+
+export type AdminTimeRange = '1d' | '7d' | '30d' | '90d';
+
+export interface AdminTrafficPoint {
+  date: string;
+  active_users: number;
+  new_users: number;
+}
+
+export interface AdminTrafficResponse {
+  points: AdminTrafficPoint[];
+  time_range: AdminTimeRange;
+}
+
+export interface AdminStudyHoursPoint {
+  date: string;
+  total_minutes: number;
+  avg_minutes_per_user: number;
+}
+
+export interface AdminStudyHoursResponse {
+  points: AdminStudyHoursPoint[];
+  time_range: AdminTimeRange;
+}
+
+export interface AdminTopLearner {
+  user_id: string;
+  display_name: string;
+  email: string;
+  study_minutes: number;
+  sessions: number;
+  avg_accuracy: number;
+  streak: number;
+}
+
+export interface AdminTopLearnersResponse {
+  learners: AdminTopLearner[];
+  time_range: AdminTimeRange;
+}
+
+export interface AdminContentHealthResponse {
+  total_videos: number;
+  ready: number;
+  pending: number;
+  processing: number;
+  failed: number;
+  curated: number;
+  levels: Record<string, number>;
+}
+
+export interface AdminEngagementResponse {
+  completion_rate: number;
+  avg_session_duration: number;
+  repeat_rate: number;
+  vocab_save_rate: number;
+}
+
+export interface AdminRecentActivity {
+  id: string;
+  type: 'user_signup' | 'user_login' | 'session_completed' | 'video_added' | 'transcription_failed';
+  description: string;
+  user_name: string | null;
+  timestamp: string;
+}
+
+export interface AdminRecentActivityResponse {
+  activities: AdminRecentActivity[];
 }
 
 export interface TranscriptResponse {
@@ -409,3 +566,32 @@ export interface WordPreviewResponse {
   is_saved: boolean;
   part_of_speech: string | null;
 }
+
+// ─── Vocabulary import ───────────────────────────────────────────────────────
+
+export interface ImportResult {
+  job_id: string | null;
+  imported: number;
+  updated: number;
+  errors: Array<{ row: number; error: string }>;
+  total_words: number;
+  enrich_queued: boolean;
+}
+
+export interface ImportJobStatus {
+  job_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  total: number;
+  enriched: number;
+  phase: 'meanings' | 'audio' | 'translations' | 'done';
+  progress_pct: number;
+  error: string | null;
+}
+
+export type ImportColumnMapping = {
+  word: string;
+  meaning?: string;
+  phonetic?: string;
+  note?: string;
+  context_sentence?: string;
+};

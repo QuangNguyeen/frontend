@@ -18,7 +18,8 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const tokens = await authService.login(email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const tokens = await authService.login(normalizedEmail, password);
       localStorage.setItem('access_token', tokens.access_token);
       const user = await authService.getMe();
       return { tokens, user };
@@ -42,8 +43,12 @@ export function useRegister() {
 
   return useMutation({
     mutationFn: async (data: RegisterRequest) => {
-      await authService.register(data);
-      const tokens = await authService.login(data.email, data.password);
+      const payload = {
+        ...data,
+        email: data.email.trim().toLowerCase(),
+      };
+      await authService.register(payload);
+      const tokens = await authService.login(payload.email, data.password);
       localStorage.setItem('access_token', tokens.access_token);
       const user = await authService.getMe();
       return { tokens, user };

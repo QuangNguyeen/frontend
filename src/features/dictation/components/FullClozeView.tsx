@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo, startTransition } from 'react';
 import {
-  Check, X, Loader2, Trophy, Sparkles, Send, Lightbulb, RotateCcw, Eye,
+  Check, X, Loader2, Trophy, Sparkles, Send, RotateCcw, Eye, Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useClozeFullData, useSubmitClozeAll } from '../hooks/useDictation';
@@ -16,10 +16,14 @@ interface FullClozeViewProps {
   onTimeSeek?: (timeSec: number) => void;
   onCompleted?: () => void;
   currentTime?: number;
+  totalDuration?: number;
   savedWords?: Set<string>;
   previewingWord?: string | null;
   onWordClick?: (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => void;
   onRetry?: () => void;
+  onProgressChange?: (info: { filled: number; total: number; activeBlankIdx: number }) => void;
+  pausePlayback?: () => void;
+  resumePlayback?: () => void;
 }
 
 type AnswerMap = Record<number, string>;
@@ -27,7 +31,7 @@ type AnswerMap = Record<number, string>;
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
 function blankWidth(answerLen: number): number {
-  return Math.max(5, Math.min(14, answerLen + 2));
+  return Math.max(5, Math.min(18, answerLen + 2));
 }
 
 function formatTimestamp(seconds: number): string {
@@ -60,7 +64,10 @@ const BlankInput = memo(function BlankInput({
   blankNumber,
   onChange,
   onAdvance,
+  onGoBack,
   hasError,
+  isActive,
+  isCorrect,
 }: {
   inputRef: (el: HTMLInputElement | null) => void;
   value: string;
@@ -68,18 +75,18 @@ const BlankInput = memo(function BlankInput({
   blankNumber: number;
   onChange: (next: string) => void;
   onAdvance: () => void;
+  onGoBack: () => void;
   hasError?: boolean;
+  isActive?: boolean;
+  isCorrect?: boolean;
 }) {
   return (
-    <span className="inline-flex items-baseline gap-0.5 align-baseline mx-0.5">
+    <span className="inline-flex items-baseline align-baseline mx-1">
       <span
-        className={cn(
-          'inline-flex items-center justify-center h-5 w-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 select-none border bg-background',
-          hasError ? 'border-red-400 text-red-500' : 'border-foreground/25 text-muted-foreground',
-        )}
+        className="text-xs font-semibold tabular-nums text-muted-foreground/55 select-none mr-1 align-baseline"
         aria-hidden
       >
-        {blankNumber}
+        [{blankNumber}]
       </span>
       <input
         ref={inputRef}
@@ -89,26 +96,39 @@ const BlankInput = memo(function BlankInput({
         autoCapitalize="off"
         value={value}
         aria-label={`Blank ${blankNumber}`}
+        title={`${expectedLen} letters`}
+        placeholder={'_'.repeat(Math.min(expectedLen, 12))}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'Tab') {
+          if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            onAdvance();
+          } else if (e.key === 'Tab' && e.shiftKey) {
+            e.preventDefault();
+            onGoBack();
+          } else if (e.key === 'Enter') {
             e.preventDefault();
             onAdvance();
           }
         }}
-        style={{ width: `${blankWidth(expectedLen)}ch` }}
+        style={{ width: `${blankWidth(expectedLen)}ch`, minWidth: '52px' }}
         className={cn(
-          'inline-block h-9 px-1.5 text-lg font-medium tabular-nums text-foreground bg-transparent border-0 border-b-2 rounded-none focus:outline-none transition-colors',
-          hasError
-            ? 'border-red-400 focus:border-red-500'
-            : 'border-border focus:border-foreground',
+          'inline-block h-8 text-center align-baseline rounded-lg px-2.5 text-base font-semibold tabular-nums text-foreground shadow-inner transition-all duration-200 ease-in-out focus:outline-none',
+          'placeholder:text-muted-foreground/30',
+          isCorrect
+            ? 'bg-accent-emerald/10 border border-accent-emerald ring-1 ring-accent-emerald/40'
+            : hasError
+              ? 'bg-destructive/10 border border-destructive ring-1 ring-destructive/40 focus:border-destructive'
+              : isActive
+                ? 'bg-primary-soft border border-primary ring-[3px] ring-ring/20'
+                : 'bg-background hover:bg-muted/55 border border-border focus:bg-background focus:border-primary focus:ring-[3px] focus:ring-ring/20 focus:text-foreground focus:shadow-md',
         )}
       />
     </span>
   );
 });
 
-/* ─── Inline answer reveal (after submit) ���───────────────────────────────── */
+/* ─── Inline answer reveal (after submit) ──────────────────────────────── */
 
 function InlineAnswer({ result }: { result: ClozeBlankResult }) {
   const given = result.given.trim();
@@ -117,7 +137,7 @@ function InlineAnswer({ result }: { result: ClozeBlankResult }) {
   if (result.status === 'correct') {
     return (
       <span className="inline-flex items-baseline mx-0.5 border-0 no-underline">
-        <span className="inline rounded px-1.5 py-0.5 text-lg font-semibold bg-green-100 text-green-700 border-0 no-underline decoration-transparent">
+        <span className="inline rounded px-1.5 py-0.5 text-base font-semibold bg-green-100 text-green-700 border-0 no-underline decoration-transparent">
           {expected} <Check className="inline h-3.5 w-3.5 -mt-0.5" />
         </span>
       </span>
@@ -127,7 +147,7 @@ function InlineAnswer({ result }: { result: ClozeBlankResult }) {
   if (!given) {
     return (
       <span className="inline-flex items-baseline mx-0.5 border-0 no-underline">
-        <span className="inline rounded px-1.5 py-0.5 text-lg font-semibold bg-amber-50 text-amber-600 border-0 no-underline decoration-transparent">
+        <span className="inline rounded px-1.5 py-0.5 text-base font-semibold bg-amber-50 text-amber-600 border-0 no-underline decoration-transparent">
           {expected}
         </span>
       </span>
@@ -136,7 +156,7 @@ function InlineAnswer({ result }: { result: ClozeBlankResult }) {
 
   return (
     <span className="inline-flex items-baseline mx-0.5 border-0 no-underline">
-      <span className="inline rounded px-1.5 py-0.5 text-lg border-0 no-underline decoration-transparent">
+      <span className="inline rounded px-1.5 py-0.5 text-base border-0 no-underline decoration-transparent">
         <span className="line-through text-red-500">{truncate(given, 20)}</span>
         {' '}
         <span className="font-semibold text-green-700">{expected}</span>
@@ -198,6 +218,8 @@ const SegmentLine = memo(function SegmentLine({
   onTimestampClick,
   startTime,
   advanceToNext,
+  goToPrevious,
+  activeBlankIdx,
   savedWords,
   previewingWord,
   onWordClick,
@@ -214,6 +236,8 @@ const SegmentLine = memo(function SegmentLine({
   onTimestampClick?: (timeSec: number) => void;
   startTime: number;
   advanceToNext: (fromBlankIdx: number) => void;
+  goToPrevious: (fromBlankIdx: number) => void;
+  activeBlankIdx: number;
   savedWords: Set<string>;
   previewingWord: string | null;
   onWordClick: (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => void;
@@ -230,23 +254,26 @@ const SegmentLine = memo(function SegmentLine({
 
   return (
     <div
+      data-active={isActive ? 'true' : undefined}
       className={cn(
-        'group flex gap-2 py-1.5 px-3 rounded-lg transition-colors duration-200',
-        isActive && !showResults && 'bg-primary/8',
-        showResults && segTotal > 0 && segCorrect === segTotal && 'bg-[color:var(--accent-emerald)]/5',
+        'group grid grid-cols-[48px_minmax(0,1fr)] gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 ease-in-out hover:bg-muted/35 sm:grid-cols-[58px_minmax(0,1fr)] sm:gap-4',
+        isActive && !showResults && 'border-l-[3px] border-primary bg-primary-soft/80 text-foreground shadow-soft',
+        showResults && segTotal > 0 && segCorrect === segTotal && 'bg-accent-emerald/5',
         showResults && segTotal > 0 && segCorrect < segTotal && 'bg-destructive/5',
       )}
     >
       <button
         type="button"
         onClick={() => onTimestampClick?.(startTime)}
-        className="shrink-0 text-[11px] text-muted-foreground/70 tabular-nums hover:text-foreground transition-colors mt-2 w-9 text-right"
+        className="mt-1 text-right text-[13px] tabular-nums text-muted-foreground/80 transition-colors hover:text-foreground"
       >
         {formatTimestamp(startTime)}
       </button>
 
-      {/* Inline flow — NOT flex. Preserves whitespace from tok.text (with_ws). */}
-      <p className="flex-1 text-lg leading-[2] text-foreground">
+      <p className={cn(
+        'min-w-0 text-base font-medium leading-[1.85] tracking-normal text-foreground md:text-[17px]',
+        isActive && !showResults && 'font-semibold',
+      )}>
         {segment.tokens.map((tok, i) => {
           if (!tok.is_blank) {
             if (wordsClickable) {
@@ -276,7 +303,6 @@ const SegmentLine = memo(function SegmentLine({
           const blankIdx = tok.blank_index ?? 0;
           const result = activeResults?.get(blankIdx);
 
-          // After final submit: always show inline answer
           if (isSubmitted && result) {
             const clean = cleanForSave(result.expected);
             const isSaved = savedWords.has(clean);
@@ -302,11 +328,10 @@ const SegmentLine = memo(function SegmentLine({
             );
           }
 
-          // After check: correct blanks lock in, wrong/unchecked stay as inputs
           if (isChecked && result && result.status === 'correct') {
             return (
               <span key={`b-${blankIdx}`} className="inline-flex items-baseline mx-0.5 border-0 no-underline">
-                <span className="inline rounded px-1.5 py-0.5 text-lg font-semibold bg-green-100 text-green-700 border-0 no-underline decoration-transparent">
+                <span className="inline rounded px-1.5 py-0.5 text-base font-semibold bg-green-100 text-green-700 border-0 no-underline decoration-transparent">
                   {result.expected} <Check className="inline h-3.5 w-3.5 -mt-0.5" />
                 </span>
               </span>
@@ -322,7 +347,10 @@ const SegmentLine = memo(function SegmentLine({
               blankNumber={blankIdx + 1}
               onChange={(next) => setAnswer(blankIdx, next)}
               onAdvance={() => advanceToNext(blankIdx)}
+              onGoBack={() => goToPrevious(blankIdx)}
               hasError={isChecked && result?.status === 'wrong'}
+              isActive={activeBlankIdx === blankIdx}
+              isCorrect={isChecked && result?.status === 'correct'}
             />
           );
         })}
@@ -330,7 +358,7 @@ const SegmentLine = memo(function SegmentLine({
 
       {showResults && segTotal > 0 && (
         <span className={cn(
-          'shrink-0 text-[11px] font-semibold tabular-nums self-center px-1.5 py-0.5 rounded-full',
+          'col-start-2 w-fit text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded-full',
           segCorrect === segTotal
             ? 'bg-[color:var(--accent-emerald)]/15 text-[color:var(--accent-emerald)]'
             : 'bg-destructive/10 text-destructive',
@@ -347,9 +375,9 @@ const SegmentLine = memo(function SegmentLine({
   if (prev.isChecked !== next.isChecked) return false;
   if (prev.resultsMap !== next.resultsMap) return false;
   if (prev.checkedResultsMap !== next.checkedResultsMap) return false;
+  if (prev.activeBlankIdx !== next.activeBlankIdx) return false;
   if (prev.savedWords !== next.savedWords) return false;
   if (prev.previewingWord !== next.previewingWord) return false;
-  // Only compare answers for this segment's blanks (avoids full AnswerMap reference check)
   for (const tok of prev.segment.tokens) {
     if (tok.is_blank && tok.blank_index != null) {
       if ((prev.answers[tok.blank_index] ?? '') !== (next.answers[tok.blank_index] ?? '')) return false;
@@ -362,15 +390,18 @@ const SegmentLine = memo(function SegmentLine({
 
 export function FullClozeView({
   sessionId,
-  videoId,
   difficulty,
   onTimeSeek,
   onCompleted,
   currentTime = 0,
+  totalDuration: totalDurationProp,
   savedWords: savedWordsProp,
   previewingWord: previewingWordProp = null,
   onWordClick: onWordClickProp,
   onRetry: onRetryProp,
+  onProgressChange,
+  pausePlayback,
+  resumePlayback,
 }: FullClozeViewProps) {
   const { data, isLoading, isError } = useClozeFullData(sessionId, difficulty);
   const submitMutation = useSubmitClozeAll(sessionId);
@@ -384,10 +415,11 @@ export function FullClozeView({
   const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const segments = data?.segments ?? [];
+  const segments = useMemo(() => data?.segments ?? [], [data?.segments]);
   const totalBlanks = data?.total_blanks ?? 0;
   const filledCount = Object.values(answers).filter((v) => v.trim()).length;
   const isSubmitted = !!submitResult;
+  const duration = totalDurationProp ?? (segments.length > 0 ? segments[segments.length - 1].end_time : 1);
 
   const allBlankIndices = useMemo(() => {
     const indices: number[] = [];
@@ -410,7 +442,43 @@ export function FullClozeView({
     return map;
   }, [submitResult]);
 
-  // Low-priority: activeSegmentIdx changes don't need to block typing
+  const activeBlankIdx = useMemo(() => {
+    if (isSubmitted) return -1;
+    for (let i = segments.length - 1; i >= 0; i--) {
+      if (currentTime >= segments[i].start_time) {
+        for (const tok of segments[i].tokens) {
+          if (tok.is_blank && tok.blank_index != null) {
+            const filled = (answers[tok.blank_index] ?? '').trim();
+            if (!filled) return tok.blank_index;
+          }
+        }
+        for (let j = i + 1; j < segments.length; j++) {
+          for (const tok of segments[j].tokens) {
+            if (tok.is_blank && tok.blank_index != null) {
+              const filled = (answers[tok.blank_index] ?? '').trim();
+              if (!filled) return tok.blank_index;
+            }
+          }
+        }
+        return -1;
+      }
+    }
+    return allBlankIndices[0] ?? -1;
+  }, [segments, currentTime, answers, allBlankIndices, isSubmitted]);
+
+  const blankTimestamps = useMemo(() => {
+    return segments.flatMap(seg =>
+      seg.tokens
+        .filter(t => t.is_blank && t.blank_index != null)
+        .map(t => ({
+          index: t.blank_index!,
+          time: seg.start_time,
+          filled: !!(answers[t.blank_index!] ?? '').trim(),
+          isActive: t.blank_index === activeBlankIdx,
+        }))
+    );
+  }, [segments, answers, activeBlankIdx]);
+
   const [activeSegmentIdx, setActiveSegmentIdx] = useState(-1);
   useEffect(() => {
     const idx = (() => {
@@ -425,7 +493,7 @@ export function FullClozeView({
   useEffect(() => {
     if (activeSegmentIdx < 0 || isSubmitted) return;
     const el = containerRef.current?.querySelector(`[data-seg-idx="${activeSegmentIdx}"]`);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [activeSegmentIdx, isSubmitted]);
 
   useEffect(() => {
@@ -436,7 +504,10 @@ export function FullClozeView({
     }
   }, [segments.length, allBlankIndices, isSubmitted]);
 
-  // Stable callbacks for memoized SegmentLine children
+  useEffect(() => {
+    onProgressChange?.({ filled: filledCount, total: totalBlanks, activeBlankIdx });
+  }, [filledCount, totalBlanks, activeBlankIdx, onProgressChange]);
+
   const setAnswer = useCallback((blankIdx: number, value: string) => {
     setAnswers((prev) => ({ ...prev, [blankIdx]: value }));
     setCheckedResults((prev) => prev ? null : prev);
@@ -452,6 +523,16 @@ export function FullClozeView({
     }
   }, [allBlankIndices]);
 
+  const goToPrevious = useCallback((fromBlankIdx: number) => {
+    const pos = allBlankIndices.indexOf(fromBlankIdx);
+    if (pos <= 0) return;
+    const prevIdx = allBlankIndices[pos - 1];
+    if (prevIdx != null) {
+      inputRefs.current[prevIdx]?.focus();
+      inputRefs.current[prevIdx]?.select();
+    }
+  }, [allBlankIndices]);
+
   const stableOnWordClick = useCallback(
     (word: string, contextSentence: string, audioStartTime: number, anchorEl: HTMLElement) => {
       (onWordClickProp ?? (() => {}))(word, contextSentence, audioStartTime, anchorEl);
@@ -462,6 +543,7 @@ export function FullClozeView({
   const isChecked = checkedResults !== null && !isSubmitted;
 
   const handleCheck = () => {
+    pausePlayback?.();
     if (!segments.length) return;
     const map = new Map<number, ClozeBlankResult>();
     for (const seg of segments) {
@@ -482,7 +564,6 @@ export function FullClozeView({
     }
     setCheckedResults(map);
 
-    // Focus the first wrong or unanswered blank
     for (const idx of allBlankIndices) {
       const r = map.get(idx);
       if (!r || r.status === 'wrong') {
@@ -495,8 +576,14 @@ export function FullClozeView({
     }
   };
 
+  const handleContinue = () => {
+    resumePlayback?.();
+    setCheckedResults(null);
+  };
+
   const handleSubmit = async () => {
     if (!data || submitMutation.isPending) return;
+    pausePlayback?.();
     const ordered = allBlankIndices.map((idx) => answers[idx] ?? '');
     const result = await submitMutation.mutateAsync({
       difficulty,
@@ -538,7 +625,7 @@ export function FullClozeView({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-48 text-muted-foreground">
+      <div className="flex items-center justify-center h-32 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin mr-2" /> Building cloze transcript…
       </div>
     );
@@ -553,17 +640,17 @@ export function FullClozeView({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex h-full min-h-0 max-h-[calc(100vh-104px)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
       {/* Score banner (after submit) */}
       {summary && (
-        <div className="bg-card border border-border rounded-xl shadow-soft p-4 mb-3 text-center dash-enter" style={{ animationDelay: '0ms' }}>
-          <div className="flex items-center justify-center gap-2 mb-2">
+        <div className="m-4 rounded-xl border border-border bg-background p-4 text-center shadow-soft dash-enter" style={{ animationDelay: '0ms' }}>
+          <div className="flex items-center justify-center gap-2 mb-1.5">
             <Trophy className="h-5 w-5 text-[color:var(--accent-emerald)]" />
-            <p className="text-3xl font-semibold tabular-nums text-[color:var(--accent-emerald)] leading-none">
+            <p className="text-2xl font-semibold tabular-nums text-[color:var(--accent-emerald)] leading-none">
               {summary.score}%
             </p>
           </div>
-          <div className="inline-flex items-center gap-4 text-sm">
+          <div className="inline-flex items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-1 text-[color:var(--accent-emerald)] font-semibold">
               <Check className="h-3.5 w-3.5" /> {summary.correct} correct
             </span>
@@ -572,37 +659,77 @@ export function FullClozeView({
               <X className="h-3.5 w-3.5" /> {summary.wrong} wrong
             </span>
           </div>
-          <p className="mt-2 text-xs text-foreground/80 max-w-sm mx-auto leading-relaxed inline-flex items-start gap-1.5 text-left">
+          <p className="mt-1.5 text-sm text-foreground/80 max-w-sm mx-auto leading-relaxed inline-flex items-start gap-1.5 text-left">
             <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[color:var(--accent-amber)]" />
             <span>{pickMotivation(summary.score)}</span>
           </p>
           <button
             type="button"
             onClick={handleRetry}
-            className="mt-3 inline-flex items-center gap-2 h-8 px-3 rounded-lg text-sm font-semibold bg-muted text-foreground hover:bg-muted/80 active:scale-[0.97] transition-all duration-150"
+            className="mt-2.5 inline-flex items-center gap-2 h-8 px-3.5 rounded-lg text-sm font-semibold bg-muted text-foreground hover:bg-muted/80 active:scale-[0.97] transition-all duration-150"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Try Again
           </button>
         </div>
       )}
+      <div className="shrink-0 border-b border-border bg-card/95 px-5 py-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              Cloze transcript
+            </p>
+            <h2 className="mt-0.5 text-lg font-bold tracking-tight text-foreground">
+              Fill the missing words as you listen
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="rounded-full border border-border bg-muted px-2.5 py-1 font-semibold text-muted-foreground">
+              {difficulty}
+            </span>
+            <span className="rounded-full border border-border bg-muted px-2.5 py-1 font-semibold tabular-nums text-foreground">
+              {filledCount}/{totalBlanks} filled
+            </span>
+          </div>
+        </div>
+      </div>
 
-      {/* Word save hint (after check or submit) */}
-      {(isSubmitted || isChecked) && (
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-2 px-1">
-          <Lightbulb className="h-3 w-3 text-amber-500 shrink-0" />
-          Click any word to save to flashcards
+      {/* Audio timeline with blank markers */}
+      {!isSubmitted && segments.length > 0 && (
+        <div className="shrink-0 border-b border-border bg-muted/20 px-5 py-2.5">
+          <div className="relative h-7 group/timeline">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-border rounded-full" />
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-primary/60 rounded-full transition-all duration-200"
+              style={{ width: `${Math.min((currentTime / duration) * 100, 100)}%` }}
+            />
+            {blankTimestamps.map((bt) => (
+              <button
+                key={bt.index}
+                type="button"
+                onClick={() => onTimeSeek?.(bt.time)}
+                className={cn(
+                  'absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full border-2 border-background transition-all cursor-pointer h-2.5 w-2.5 hover:h-4 hover:w-4 hover:z-10',
+                  bt.filled ? 'bg-[color:var(--accent-emerald)]' :
+                  bt.isActive ? 'bg-amber-400 scale-125' :
+                  'bg-muted-foreground/30',
+                )}
+                style={{ left: `${Math.min((bt.time / duration) * 100, 100)}%` }}
+                title={`Blank [${bt.index + 1}] at ${formatTimestamp(bt.time)}`}
+              />
+            ))}
+          </div>
         </div>
       )}
 
       {/* Scrollable transcript */}
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-y-auto bg-card border border-border rounded-xl"
-      >
-        <div className="px-2 sm:px-4 py-4 space-y-0">
+      <div ref={containerRef} className="flex-1 overflow-y-auto bg-card scrollbar-stable">
+        <div className="space-y-1 px-3 py-4 sm:px-5">
           {segments.map((seg, i) => (
             <div key={seg.segment_index} data-seg-idx={i}>
+              {i > 0 && segments[i].start_time - segments[i - 1].end_time > 2 && (
+                <div className="h-2" />
+              )}
               <SegmentLine
                 segment={seg}
                 answers={answers}
@@ -616,6 +743,8 @@ export function FullClozeView({
                 onTimestampClick={onTimeSeek}
                 startTime={seg.start_time}
                 advanceToNext={advanceToNext}
+                goToPrevious={goToPrevious}
+                activeBlankIdx={activeBlankIdx}
                 savedWords={savedWords}
                 previewingWord={previewingWord}
                 onWordClick={stableOnWordClick}
@@ -627,44 +756,46 @@ export function FullClozeView({
 
       {/* Bottom bar — check + submit */}
       {!isSubmitted && (
-        <div className="shrink-0 flex items-center justify-between gap-3 pt-3">
-          <p className="text-xs text-muted-foreground tabular-nums">
-            {isChecked
-              ? (() => {
-                  const correct = Array.from(checkedResults!.values()).filter((r) => r.status === 'correct').length;
-                  return (
-                    <span className="inline-flex items-center gap-1">
-                      <Check className="h-3 w-3 text-[color:var(--accent-emerald)]" />
-                      <span className="text-[color:var(--accent-emerald)] font-semibold">{correct}</span>
-                      /{filledCount} correct
-                    </span>
-                  );
-                })()
-              : <>{filledCount}/{totalBlanks} filled</>}
-          </p>
+        <div className="shrink-0 border-t border-border bg-card/95 px-4 py-3 backdrop-blur-md flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground tabular-nums font-medium">
+              {isChecked
+                ? (() => {
+                    const correct = Array.from(checkedResults!.values()).filter((r) => r.status === 'correct').length;
+                    return (
+                      <span className="inline-flex items-center gap-1">
+                        <Check className="h-3 w-3 text-[color:var(--accent-emerald)]" />
+                        <span className="text-[color:var(--accent-emerald)] font-semibold">{correct}</span>
+                        /{filledCount} correct
+                      </span>
+                    );
+                  })()
+                : <>{filledCount}<span className="text-muted-foreground/60">/{totalBlanks}</span> filled</>}
+            </p>
+          </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleCheck}
-              disabled={filledCount === 0}
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-semibold border border-border bg-card text-foreground shadow-soft transition-all duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground"
+              onClick={isChecked ? handleContinue : handleCheck}
+              disabled={!isChecked && filledCount === 0}
+              className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-semibold border border-border bg-card text-foreground hover:bg-muted active:scale-[0.97] transition-all disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground"
             >
-              <Eye className="h-3.5 w-3.5" />
-              Check
+              {isChecked ? <Play className="h-4 w-4 fill-current" /> : <Eye className="h-4 w-4" />}
+              {isChecked ? 'Continue' : 'Check'}
             </button>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={submitMutation.isPending || filledCount === 0}
-              className="inline-flex items-center gap-2 h-10 px-5 rounded-lg text-sm font-semibold bg-foreground text-background shadow-soft transition-all duration-150 ease-out hover:-translate-y-px disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground"
+              className="inline-flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-bold bg-primary text-primary-foreground shadow-md hover:bg-primary/90 hover:shadow-lg hover:-translate-y-px active:scale-[0.97] transition-all disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground"
             >
               {submitMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-4 w-4" />
               )}
-              Submit all
+              Submit All
             </button>
           </div>
         </div>

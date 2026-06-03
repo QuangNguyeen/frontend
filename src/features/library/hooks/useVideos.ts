@@ -60,7 +60,7 @@ export function useVideoTranscripts(videoId: string | undefined) {
     },
   });
 
-  const prevStatus = useRef<string | undefined>();
+  const prevStatus = useRef<string | undefined>(undefined);
   useEffect(() => {
     const status = statusQuery.data?.status;
     if (status === 'ready' && prevStatus.current && prevStatus.current !== 'ready') {

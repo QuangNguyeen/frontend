@@ -147,106 +147,38 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
 
   const currentRef = useRef<Map<string, string>>(new Map());
   const dirtySetRef = useRef<Set<string>>(new Set());
-  const [dirtyCount, setDirtyCount] = useState(0);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState('');
   const [savedBanner, setSavedBanner] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const totalChanges = dirtyCount + deletedIds.size;
+  const totalChanges = dirtyIds.size + deletedIds.size;
 
   useEffect(() => {
     if (!open) return;
     currentRef.current = new Map();
     dirtySetRef.current = new Set();
-    setDirtyCount(0);
-    setDeletedIds(new Set());
-    setSaveError('');
-    setSavedBanner(false);
-    setSearchQuery('');
+    queueMicrotask(() => {
+      setDirtyIds(new Set());
+      setDeletedIds(new Set());
+      setSaveError('');
+      setSavedBanner(false);
+      setSearchQuery('');
+    });
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     currentRef.current = new Map();
     dirtySetRef.current = new Set();
-    setDirtyCount(0);
-    setDeletedIds(new Set());
+    queueMicrotask(() => {
+      setDirtyIds(new Set());
+      setDeletedIds(new Set());
+    });
   }, [transcripts, open]);
 
-  // Ctrl+S keyboard shortcut
-  useEffect(() => {
-    if (!open) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        if (totalChanges > 0 && !updateMutation.isPending) {
-          handleSave();
-        }
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, totalChanges, updateMutation.isPending]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleRowChange = useCallback((id: string, text: string, original: string) => {
-    currentRef.current.set(id, text);
-    const wasDirty = dirtySetRef.current.has(id);
-    const isDirty = text !== original;
-    if (isDirty && !wasDirty) {
-      dirtySetRef.current.add(id);
-      setDirtyCount((n) => n + 1);
-    } else if (!isDirty && wasDirty) {
-      dirtySetRef.current.delete(id);
-      setDirtyCount((n) => n - 1);
-    }
-    if (savedBanner) setSavedBanner(false);
-    if (saveError) setSaveError('');
-  }, [savedBanner, saveError]);
-
-  const handleToggleDelete = useCallback((id: string) => {
-    setDeletedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-    if (savedBanner) setSavedBanner(false);
-    if (saveError) setSaveError('');
-  }, [savedBanner, saveError]);
-
-  const handleUndoAll = useCallback(() => {
-    setDeletedIds(new Set());
-    dirtySetRef.current = new Set();
-    currentRef.current = new Map();
-    setDirtyCount(0);
-    setSaveError('');
-    setSavedBanner(false);
-  }, []);
-
-  const rows = useMemo(
-    () =>
-      transcripts.map((t) => ({
-        id: t.id,
-        index: t.index,
-        original: t.text,
-        timeLabel: `${formatTime(t.start_time)} – ${formatTime(t.end_time)}`,
-      })),
-    [transcripts],
-  );
-
-  const filteredRows = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
-    const q = searchQuery.toLowerCase();
-    return rows.filter(
-      (r) => r.original.toLowerCase().includes(q) || `#${r.index + 1}`.includes(q),
-    );
-  }, [rows, searchQuery]);
-
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (totalChanges === 0) return;
 
     const items = [
@@ -275,7 +207,79 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
         onError: (err) => setSaveError(extractApiError(err, 'Failed to save subtitles')),
       },
     );
-  };
+  }, [deletedIds, totalChanges, updateMutation]);
+
+  // Ctrl+S keyboard shortcut
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (totalChanges > 0 && !updateMutation.isPending) {
+          handleSave();
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave, open, totalChanges, updateMutation.isPending]);
+
+  const handleRowChange = useCallback((id: string, text: string, original: string) => {
+    currentRef.current.set(id, text);
+    const wasDirty = dirtySetRef.current.has(id);
+    const isDirty = text !== original;
+    if (isDirty && !wasDirty) {
+      dirtySetRef.current.add(id);
+      setDirtyIds(new Set(dirtySetRef.current));
+    } else if (!isDirty && wasDirty) {
+      dirtySetRef.current.delete(id);
+      setDirtyIds(new Set(dirtySetRef.current));
+    }
+    if (savedBanner) setSavedBanner(false);
+    if (saveError) setSaveError('');
+  }, [savedBanner, saveError]);
+
+  const handleToggleDelete = useCallback((id: string) => {
+    setDeletedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    if (savedBanner) setSavedBanner(false);
+    if (saveError) setSaveError('');
+  }, [savedBanner, saveError]);
+
+  const handleUndoAll = useCallback(() => {
+    setDeletedIds(new Set());
+    dirtySetRef.current = new Set();
+    currentRef.current = new Map();
+    setDirtyIds(new Set());
+    setSaveError('');
+    setSavedBanner(false);
+  }, []);
+
+  const rows = useMemo(
+    () =>
+      transcripts.map((t) => ({
+        id: t.id,
+        index: t.index,
+        original: t.text,
+        timeLabel: `${formatTime(t.start_time)} – ${formatTime(t.end_time)}`,
+      })),
+    [transcripts],
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(
+      (r) => r.original.toLowerCase().includes(q) || `#${r.index + 1}`.includes(q),
+    );
+  }, [rows, searchQuery]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next && totalChanges > 0 && !updateMutation.isPending) {
@@ -352,7 +356,7 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
                   original={row.original}
                   timeLabel={row.timeLabel}
                   isDeleted={deletedIds.has(row.id)}
-                  isEdited={dirtySetRef.current.has(row.id)}
+                  isEdited={dirtyIds.has(row.id)}
                   onChange={handleRowChange}
                   onToggleDelete={handleToggleDelete}
                 />
@@ -398,11 +402,11 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
               disabled={totalChanges === 0 || updateMutation.isPending}
               className={cn(
                 'px-5 rounded-lg font-semibold shadow-md gap-2',
-                deletedIds.size > 0 && dirtyCount === 0 && 'bg-destructive hover:bg-destructive/90',
+                deletedIds.size > 0 && dirtyIds.size === 0 && 'bg-destructive hover:bg-destructive/90',
               )}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {deletedIds.size > 0 && dirtyCount === 0
+              {deletedIds.size > 0 && dirtyIds.size === 0
                 ? `Delete ${deletedIds.size}`
                 : 'Save'}
               {totalChanges > 0 && (

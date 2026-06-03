@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo, startTransition } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Square, RotateCcw, SkipForward, ChevronDown,
+  ArrowLeft, Play, Pause, SkipBack, SkipForward, Lightbulb,
 } from 'lucide-react';
+import { AppSelect } from '@/components/ui/app-select';
 import { YoutubePlayer } from './YoutubePlayer';
 import type { YoutubePlayerHandle } from './YoutubePlayer';
 import { FullClozeView } from './FullClozeView';
@@ -27,6 +28,17 @@ interface ClozeModeProps {
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SPEED_OPTIONS = SPEEDS.map((s) => ({
+  value: String(s),
+  label: s === 1 ? 'Normal' : `${s}×`,
+}));
+
+type PlaybackTarget = {
+  play?: () => void | Promise<void>;
+  pause?: () => void;
+  playVideo?: () => void;
+  pauseVideo?: () => void;
+};
 
 export function ClozeMode({
   video,
@@ -46,14 +58,14 @@ export function ClozeMode({
   const [isSavingWord, setIsSavingWord] = useState(false);
   const previewRequestId = useRef(0);
   const [popoverAnchorEl, setPopoverAnchorEl] = useState<HTMLElement | null>(null);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [clozeProgress, setClozeProgress] = useState({ filled: 0, total: 0, activeBlankIdx: -1 });
 
   const rate = usePlayerPrefsStore((s) => s.rate);
   const setRate = usePlayerPrefsStore((s) => s.setRate);
 
   // Fetch segments for navigation (React Query deduplicates with FullClozeView)
   const { data: clozeData } = useClozeFullData(sessionId, difficulty);
-  const segments = clozeData?.segments ?? [];
+  const segments = useMemo(() => clozeData?.segments ?? [], [clozeData?.segments]);
 
   const activeSegmentIdx = useMemo(() => {
     for (let i = segments.length - 1; i >= 0; i--) {
@@ -156,23 +168,42 @@ export function ClozeMode({
 
   // ── Playback controls ──────────────────────────────────────────────────────
 
-  const handleStop = useCallback(() => {
-    playerHandle.current?.pause();
+  const pausePlayback = useCallback(() => {
+    const player = playerHandle.current as PlaybackTarget | null;
+    player?.pause?.();
+    player?.pauseVideo?.();
     setIsPlaying(false);
-    if (activeSegmentIdx >= 0 && segments[activeSegmentIdx]) {
-      playerHandle.current?.seekTo(segments[activeSegmentIdx].start_time);
-    } else {
-      playerHandle.current?.seekTo(0);
-    }
-  }, [playerHandle, activeSegmentIdx, segments]);
+  }, [playerHandle]);
 
-  const handleReplay = useCallback(() => {
-    if (activeSegmentIdx >= 0 && segments[activeSegmentIdx]) {
-      playerHandle.current?.seekTo(segments[activeSegmentIdx].start_time);
+  const resumePlayback = useCallback(() => {
+    const player = playerHandle.current as PlaybackTarget | null;
+    const playResult = player?.play?.();
+    if (playResult && typeof (playResult as Promise<void>).catch === 'function') {
+      void (playResult as Promise<void>).catch(() => setIsPlaying(false));
+    }
+    player?.playVideo?.();
+    setIsPlaying(true);
+  }, [playerHandle]);
+
+  const handlePlayPause = useCallback(() => {
+    if (isPlaying) {
+      pausePlayback();
+    } else {
+      if (activeSegmentIdx >= 0 && segments[activeSegmentIdx]) {
+        playerHandle.current?.seekTo(segments[activeSegmentIdx].start_time);
+      }
+      resumePlayback();
+    }
+  }, [playerHandle, isPlaying, activeSegmentIdx, segments, pausePlayback, resumePlayback]);
+
+  const handlePrevSegment = useCallback(() => {
+    const prevIdx = activeSegmentIdx - 1;
+    if (prevIdx >= 0 && segments[prevIdx]) {
+      playerHandle.current?.seekTo(segments[prevIdx].start_time);
       playerHandle.current?.play();
       setIsPlaying(true);
-    } else {
-      playerHandle.current?.seekTo(0);
+    } else if (segments[0]) {
+      playerHandle.current?.seekTo(segments[0].start_time);
       playerHandle.current?.play();
       setIsPlaying(true);
     }
@@ -187,27 +218,43 @@ export function ClozeMode({
     }
   }, [playerHandle, activeSegmentIdx, segments]);
 
-  const handleSpeedChange = useCallback((speed: number) => {
-    setRate(speed);
-    playerHandle.current?.setRate(speed);
-    setShowSpeedMenu(false);
+  const handleSpeedChange = useCallback((speed: string) => {
+    const num = Number(speed);
+    setRate(num);
+    playerHandle.current?.setRate(num);
   }, [playerHandle, setRate]);
 
   const handleRetry = useCallback(() => {
-    playerHandle.current?.pause();
+    pausePlayback();
     playerHandle.current?.seekTo(0);
     setPopoverAnchorEl(null);
     setPreviewData(null);
     setPreviewResult(null);
-  }, [playerHandle]);
+  }, [playerHandle, pausePlayback]);
 
-  // Close speed menu on outside click
-  useEffect(() => {
-    if (!showSpeedMenu) return;
-    const handler = () => setShowSpeedMenu(false);
-    const t = setTimeout(() => document.addEventListener('click', handler), 0);
-    return () => { clearTimeout(t); document.removeEventListener('click', handler); };
-  }, [showSpeedMenu]);
+  const handleProgressChange = useCallback((info: { filled: number; total: number; activeBlankIdx: number }) => {
+    setClozeProgress(info);
+  }, []);
+
+  const activeBlankInfo = useMemo(() => {
+    if (clozeProgress.activeBlankIdx < 0) return null;
+    const idx = clozeProgress.activeBlankIdx;
+    for (const seg of segments) {
+      for (const tok of seg.tokens) {
+        if (tok.is_blank && tok.blank_index === idx) {
+          const ctx = seg.tokens.map(t =>
+            t.is_blank ? '___' : t.text
+          ).join('');
+          return {
+            number: idx + 1,
+            expectedLen: tok.text.length,
+            context: ctx.length > 60 ? ctx.slice(0, 60) + '…' : ctx,
+          };
+        }
+      }
+    }
+    return null;
+  }, [segments, clozeProgress.activeBlankIdx]);
 
   useEffect(() => {
     if (!sessionId || !playerHandle.current) return;
@@ -222,20 +269,20 @@ export function ClozeMode({
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
-      <header className="shrink-0 border-b border-border bg-card px-4 py-3 flex items-center gap-3">
+      <header className="shrink-0 min-h-14 border-b border-border bg-card/80 backdrop-blur px-3 py-2 flex items-center gap-2.5">
         <Link
           to="/library"
-          className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
           aria-label="Back to library"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+            <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground">
               Cloze
             </p>
-            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+            <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
               {difficultyLabel}
             </span>
           </div>
@@ -245,11 +292,14 @@ export function ClozeMode({
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full px-4 py-4 max-w-[1400px] mx-auto">
-          <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-            <div className="lg:col-span-4 lg:sticky lg:top-4 self-start space-y-3">
-              <div className="rounded-xl overflow-hidden border border-border shadow-soft bg-card">
+      <div className="flex-1 min-h-0 overflow-hidden p-3 lg:p-5">
+        <div className="mx-auto grid h-full min-h-0 w-full max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] gap-4 lg:grid-cols-[320px_minmax(0,940px)] lg:grid-rows-none xl:gap-6">
+          {/* Left practice sidebar */}
+          <aside className="min-h-0 overflow-y-auto rounded-2xl border border-border bg-card shadow-soft lg:sticky lg:top-5 lg:max-h-[calc(100vh-96px)]">
+          <div className="p-3 lg:p-4">
+            {/* Player + mobile inline controls */}
+            <div className="flex items-center gap-3 lg:block">
+              <div className="rounded-[14px] overflow-hidden border border-border shadow-soft w-28 lg:w-full aspect-video shrink-0">
                 <YoutubePlayer
                   ref={playerHandle}
                   videoId={video.youtube_id}
@@ -257,96 +307,166 @@ export function ClozeMode({
                   onPlayChange={handlePlayChange}
                 />
               </div>
-
-              {/* ── Playback Controls ── */}
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                {/* Stop */}
+              {/* Mobile controls */}
+              <div className="flex items-center gap-1 lg:hidden flex-1">
                 <button
-                  onClick={handleStop}
-                  title="Stop"
-                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                  type="button"
+                  onClick={handlePrevSegment}
+                  disabled={activeSegmentIdx <= 0}
+                  title="Previous segment"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 disabled:opacity-40"
                 >
-                  <Square className="h-3.5 w-3.5 fill-current" />
-                  <span className="hidden sm:inline">Stop</span>
+                  <SkipBack className="h-4 w-4" />
                 </button>
-
-                {/* Replay */}
                 <button
-                  onClick={handleReplay}
-                  title="Replay current segment"
-                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
+                  type="button"
+                  onClick={handlePlayPause}
+                  title={isPlaying ? 'Pause' : 'Play'}
+                  className={cn(
+                    'inline-flex items-center justify-center h-10 w-10 rounded-full transition-all active:scale-95 shadow-sm',
+                    isPlaying
+                      ? 'bg-muted text-foreground hover:bg-muted/70'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                  )}
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Replay</span>
+                  {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
                 </button>
-
-                {/* Next */}
                 <button
+                  type="button"
                   onClick={handleNextSegment}
                   disabled={activeSegmentIdx >= segments.length - 1}
                   title="Next segment"
-                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 disabled:opacity-40"
                 >
-                  <SkipForward className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Next</span>
+                  <SkipForward className="h-4 w-4" />
                 </button>
+                <AppSelect
+                  value={String(rate)}
+                  onValueChange={handleSpeedChange}
+                  options={SPEED_OPTIONS}
+                  size="sm"
+                  triggerClassName="h-8 px-2 rounded-full text-xs ml-1"
+                />
+                <span className="ml-auto text-sm tabular-nums text-muted-foreground font-medium">
+                  {clozeProgress.filled}/{clozeProgress.total}
+                </span>
+              </div>
+            </div>
 
-                {/* Speed */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowSpeedMenu((s) => !s)}
-                    title="Playback speed"
-                    className="inline-flex items-center gap-1 h-9 px-3 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95"
-                  >
-                    {rate === 1 ? '1x' : `${rate}x`}
-                    <ChevronDown className={cn(
-                      'h-3.5 w-3.5 transition-transform',
-                      showSpeedMenu && 'rotate-180',
-                    )} />
-                  </button>
-                  {showSpeedMenu && (
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px] z-50">
-                      {SPEEDS.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => handleSpeedChange(s)}
-                          className={cn(
-                            'flex items-center justify-between w-full px-3 py-1.5 text-sm transition-colors hover:bg-muted',
-                            rate === s ? 'font-semibold text-foreground' : 'text-muted-foreground',
-                          )}
-                        >
-                          {s === 1 ? 'Normal' : `${s}×`}
-                          {rate === s && <span className="text-primary text-xs">✓</span>}
-                        </button>
-                      ))}
-                    </div>
+            {/* Desktop-only content */}
+            <div className="hidden lg:block mt-4 space-y-3">
+              {/* Playback controls */}
+              <div className="flex items-center justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePrevSegment}
+                  disabled={activeSegmentIdx <= 0}
+                  title="Previous segment"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <SkipBack className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePlayPause}
+                  title={isPlaying ? 'Pause' : 'Play'}
+                  className={cn(
+                    'inline-flex items-center justify-center h-11 w-11 rounded-full transition-all active:scale-95 shadow-sm',
+                    isPlaying
+                      ? 'bg-muted text-foreground hover:bg-muted/70'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90',
                   )}
-                </div>
+                >
+                  {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-0.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextSegment}
+                  disabled={activeSegmentIdx >= segments.length - 1}
+                  title="Next segment"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-muted text-foreground hover:bg-muted/70 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <SkipForward className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex items-center justify-center">
+                <AppSelect
+                  value={String(rate)}
+                  onValueChange={handleSpeedChange}
+                  options={SPEED_OPTIONS}
+                  size="sm"
+                  triggerClassName="h-8 px-3 rounded-full text-xs"
+                />
               </div>
 
               {/* Segment indicator */}
               {segments.length > 0 && activeSegmentIdx >= 0 && (
-                <p className="text-center text-xs text-muted-foreground tabular-nums">
+                <p className="text-center text-sm text-muted-foreground tabular-nums">
                   Segment {activeSegmentIdx + 1} / {segments.length}
                 </p>
               )}
-            </div>
 
-            <div className="lg:col-span-8 min-w-0 flex flex-col min-h-0">
-              <FullClozeView
-                sessionId={sessionId}
-                videoId={videoId}
-                difficulty={difficulty}
-                currentTime={currentTime}
-                onTimeSeek={handleTimeSeek}
-                onCompleted={handleCompleted}
-                savedWords={savedWords}
-                previewingWord={previewData?.word ?? null}
-                onWordClick={handleWordClick}
-                onRetry={handleRetry}
-              />
+              {/* Progress card */}
+              <div className="rounded-xl border border-border bg-muted/25 p-3 space-y-2 shadow-soft">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Progress
+                  </span>
+                  <span className="text-lg font-bold tabular-nums text-foreground">
+                    {clozeProgress.filled}/{clozeProgress.total}
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-300 ease-in-out"
+                    style={{ width: `${clozeProgress.total ? (clozeProgress.filled / clozeProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Current blank info card */}
+              {activeBlankInfo && (
+              <div className="rounded-xl border border-border bg-muted/25 p-3 space-y-2 shadow-soft">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Current Blank
+                  </span>
+                  <p className="text-base text-foreground font-bold">Blank {activeBlankInfo.number}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground italic line-clamp-3">
+                    &ldquo;{activeBlankInfo.context}&rdquo;
+                  </p>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {activeBlankInfo.expectedLen} letters
+                  </p>
+                </div>
+              )}
+              <div className="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Lightbulb className="h-3 w-3 text-amber-500 shrink-0" />
+                Click any word to save to flashcards
+              </div>
             </div>
           </div>
+          </aside>
+
+        {/* Right — cloze transcript */}
+        <section className="min-w-0 min-h-0 flex justify-center overflow-hidden">
+          <div className="w-full max-w-[940px] min-h-0">
+          <FullClozeView
+            sessionId={sessionId}
+            videoId={videoId}
+            difficulty={difficulty}
+            currentTime={currentTime}
+            onTimeSeek={handleTimeSeek}
+            onCompleted={handleCompleted}
+            savedWords={savedWords}
+            previewingWord={previewData?.word ?? null}
+            onWordClick={handleWordClick}
+            onRetry={handleRetry}
+            onProgressChange={handleProgressChange}
+            pausePlayback={pausePlayback}
+            resumePlayback={resumePlayback}
+          />
+          </div>
+        </section>
         </div>
       </div>
 

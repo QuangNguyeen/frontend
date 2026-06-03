@@ -74,7 +74,7 @@ export function RoomGamePage({
   useEffect(() => {
     if (!lastSubmitResult) return;
     onSubmitResult(lastSubmitResult);
-    setShowResult(lastSubmitResult);
+    queueMicrotask(() => setShowResult(lastSubmitResult));
 
     if (autoNextRef.current) {
       const t = setTimeout(() => {

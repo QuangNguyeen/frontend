@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, Plus, LogIn } from 'lucide-react';
+import { Loader2, AlertCircle, Plus, LogIn, Users, Timer, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CountBadge, PageContainer, PageStickyArea, PageScrollArea, PageHeader } from '@/components/layout/PageShell';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { roomService } from '../services/roomService';
 import { useRoomWebSocket } from '../hooks/useRoomWebSocket';
@@ -53,18 +54,24 @@ export function RoomPage() {
   useEffect(() => {
     if (!roomCode) return;
 
-    setJoining(true);
-    roomService
-      .joinRoom(roomCode)
-      .then(() => {
+    let cancelled = false;
+    const joinRoom = async () => {
+      setJoining(true);
+      try {
+        await roomService.joinRoom(roomCode);
+        if (cancelled) return;
         setJoined(true);
         setError(null);
-      })
-      .catch((err) => {
+      } catch (err) {
+        if (cancelled) return;
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
         setError(detail || 'Failed to join room');
-      })
-      .finally(() => setJoining(false));
+      } finally {
+        if (!cancelled) setJoining(false);
+      }
+    };
+    void joinRoom();
+    return () => { cancelled = true; };
   }, [roomCode]);
 
   const handleJoinByCode = async () => {
@@ -79,42 +86,69 @@ export function RoomPage() {
 
   if (!roomCode) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-full p-5 gap-5">
-        <h1 className="text-xl font-bold">Multiplayer Rooms</h1>
+      <PageContainer>
+        <PageStickyArea>
+          <PageHeader
+            title="Multiplayer Rooms"
+            actions={<CountBadge tone="primary">Live practice</CountBadge>}
+          />
+        </PageStickyArea>
 
-        <div className="flex flex-col gap-3 w-full max-w-sm">
-          <Button onClick={() => setShowCreate(true)} className="gap-1.5 rounded-xl h-10">
-            <Plus className="h-4 w-4" />
-            Create Room
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-background px-2 text-muted-foreground">or join existing</span>
+        <PageScrollArea>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="app-card p-5 sm:p-6">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { icon: <Users className="h-4 w-4" />, label: 'Live lobby', value: '2-50 players' },
+                { icon: <RotateCcw className="h-4 w-4" />, label: 'Replay rules', value: 'Host controlled' },
+                { icon: <Timer className="h-4 w-4" />, label: 'Timed exam', value: 'Optional limit' },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-border bg-muted/30 p-3">
+                  <span className="text-primary">{item.icon}</span>
+                  <p className="mt-2 text-sm font-semibold">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.value}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter room code"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              maxLength={6}
-              className="font-mono text-center tracking-widest text-lg"
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
-            />
-            <Button onClick={handleJoinByCode} disabled={joinCode.length < 4} className="gap-1 rounded-xl">
-              <LogIn className="h-4 w-4" />
-              Join
-            </Button>
+          <div className="app-card p-4 sm:p-5">
+            <div className="flex flex-col gap-3">
+              <Button onClick={() => setShowCreate(true)} className="gap-1.5 h-10">
+                <Plus className="h-4 w-4" />
+                Create Room
+              </Button>
+
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-card px-2 text-muted-foreground">or join existing</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Room code"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  maxLength={6}
+                  className="h-10 font-mono text-center text-lg tracking-widest"
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
+                />
+                <Button onClick={handleJoinByCode} disabled={joinCode.length < 4} className="h-10 gap-1">
+                  <LogIn className="h-4 w-4" />
+                  Join
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
         <CreateRoomModal open={showCreate} onOpenChange={setShowCreate} />
-      </div>
+        </PageScrollArea>
+      </PageContainer>
     );
   }
 

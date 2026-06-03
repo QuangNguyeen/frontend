@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vocabularyService } from '../services/vocabularyService';
-import type { SaveWordRequest, ReviewRequest } from '@/shared/types/api';
+import type { SaveWordRequest, ReviewRequest, ImportJobStatus } from '@/shared/types/api';
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
@@ -94,5 +94,38 @@ export function useDeleteWord() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: vocabularyKeys.all });
     },
+  });
+}
+
+/**
+ * Mutation to import a vocabulary file (CSV/XLSX). Immediately invalidates the
+ * word list so freshly-imported rows appear right away; background enrichment
+ * (if requested) is tracked separately via {@link useImportJobStatus}.
+ */
+export function useImportVocabulary() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, enrich }: { file: File; enrich: boolean }) =>
+      vocabularyService.importWords(file, enrich),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: vocabularyKeys.all });
+    },
+  });
+}
+
+/**
+ * Poll an import job's enrichment status while it is running. Stops polling once
+ * the job reaches a terminal state ("completed" | "failed").
+ */
+export function useImportJobStatus(jobId: string | null, enabled: boolean) {
+  return useQuery<ImportJobStatus>({
+    queryKey: ['vocabulary', 'import', jobId],
+    queryFn: () => vocabularyService.getImportStatus(jobId!),
+    enabled: !!jobId && enabled,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'processing' || status === 'pending' ? 2000 : false;
+    },
+    gcTime: 0,
   });
 }

@@ -48,7 +48,7 @@ export function LiveLeaderboard({ rankings, members, currentUserId, totalSentenc
               <span className={cn(
                 'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
                 entry.rank === 1 ? 'bg-yellow-100 text-yellow-700' :
-                entry.rank === 2 ? 'bg-gray-100 text-gray-600' :
+                entry.rank === 2 ? 'bg-muted text-muted-foreground' :
                 entry.rank === 3 ? 'bg-orange-100 text-orange-600' :
                 'bg-muted text-muted-foreground',
               )}>

@@ -54,33 +54,33 @@ const DIFFICULTIES: DifficultyMeta[] = [
     value: 'easy', label: 'Easy',
     description: 'Fewer blanks, mostly long words', blanks: '~10% of words',
     color: {
-      border: 'hover:border-emerald-500/50',
-      borderSelected: 'border-emerald-500 shadow-emerald-500/10',
-      bg: 'bg-emerald-500/10',
-      icon: 'text-emerald-500',
-      check: 'bg-emerald-500 text-white',
+      border: 'hover:border-primary/50',
+      borderSelected: 'border-primary shadow-primary/10',
+      bg: 'bg-primary-soft',
+      icon: 'text-primary',
+      check: 'bg-primary text-white',
     },
   },
   {
     value: 'medium', label: 'Medium',
     description: 'Balanced challenge', blanks: '~25% of words',
     color: {
-      border: 'hover:border-amber-500/50',
-      borderSelected: 'border-amber-500 shadow-amber-500/10',
-      bg: 'bg-amber-500/10',
-      icon: 'text-amber-500',
-      check: 'bg-amber-500 text-white',
+      border: 'hover:border-accent-yellow/50',
+      borderSelected: 'border-accent-yellow shadow-accent-yellow/10',
+      bg: 'bg-accent-yellow/10',
+      icon: 'text-accent-yellow',
+      check: 'bg-accent-yellow text-foreground',
     },
   },
   {
     value: 'hard', label: 'Hard',
     description: 'Many blanks, real test', blanks: '~40% of words',
     color: {
-      border: 'hover:border-rose-500/50',
-      borderSelected: 'border-rose-500 shadow-rose-500/10',
-      bg: 'bg-rose-500/10',
-      icon: 'text-rose-500',
-      check: 'bg-rose-500 text-white',
+      border: 'hover:border-destructive/50',
+      borderSelected: 'border-destructive shadow-destructive/10',
+      bg: 'bg-destructive/10',
+      icon: 'text-destructive',
+      check: 'bg-destructive text-white',
     },
   },
 ];
@@ -95,32 +95,32 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
   return (
     <div className="min-h-full bg-background">
       {/* Top bar */}
-      <header className="border-b border-border bg-card px-6 sm:px-10 py-4 flex items-center gap-3">
+      <header className="sticky top-0 z-20 min-h-16 border-b border-border bg-card/90 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3">
         <button
           onClick={() => navigate('/library')}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-2xl text-muted-foreground hover:text-foreground hover:bg-primary-soft transition-colors"
           aria-label="Back to library"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="min-w-0">
-          <p className="text-[11px] font-medium tracking-[0.1em] uppercase text-muted-foreground">
+          <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-muted-foreground">
             Practice setup
           </p>
-          <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate mt-0.5">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate mt-0.5">
             {video.title}
           </h1>
         </div>
       </header>
 
-      <div className="px-6 sm:px-10 py-8 max-w-[1080px] space-y-8 dash-enter">
+      <div className="mx-auto px-4 sm:px-6 py-8 max-w-[1120px] space-y-8 dash-enter">
         {/* Smart warning — Von Restorff focal point */}
         {video.is_auto_generated && (
           <section
             role="alert"
-            className="flex items-start gap-3 rounded-xl border border-[color:var(--accent-amber)]/40 bg-[color:var(--accent-amber)]/12 p-4 sm:p-5 shadow-soft"
+            className="flex items-start gap-3 rounded-2xl border border-accent-orange/25 bg-accent-orange/10 p-4 sm:p-5 shadow-soft"
           >
-            <span className="h-9 w-9 rounded-lg bg-[color:var(--accent-amber)] text-[color:var(--accent-amber-foreground)] flex items-center justify-center shrink-0 shadow-soft">
+            <span className="h-10 w-10 rounded-2xl bg-accent-orange text-white flex items-center justify-center shrink-0 shadow-soft">
               <AlertTriangle className="h-4 w-4" />
             </span>
             <div className="min-w-0">
@@ -137,7 +137,7 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
 
         {/* Mode selector */}
         <section>
-          <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground mb-3">
+          <p className="text-xs font-bold tracking-[0.12em] uppercase text-muted-foreground mb-3">
             Choose your practice mode
           </p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -151,26 +151,26 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
                   onClick={() => setMode(m.value)}
                   aria-pressed={selected}
                   className={cn(
-                    'group text-left p-5 sm:p-6 rounded-xl border bg-card transition-all duration-150 ease-out',
-                    'hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
+                    'group text-left p-5 sm:p-6 rounded-2xl border bg-card cursor-pointer transition-all duration-300 ease-in-out',
+                    'hover:-translate-y-0.5 hover:shadow-soft-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
                     selected
-                      ? 'border-foreground shadow-soft-lg'
-                      : 'border-border shadow-soft hover:border-foreground/40',
+                      ? 'border-primary shadow-soft-lg ring-2 ring-primary/15'
+                      : 'border-border shadow-soft hover:border-primary/30',
                   )}
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <span
                       className={cn(
-                        'h-10 w-10 rounded-lg flex items-center justify-center transition-colors',
+                        'h-11 w-11 rounded-2xl flex items-center justify-center transition-colors',
                         selected
-                          ? 'bg-foreground text-background'
-                          : 'bg-muted text-foreground group-hover:bg-muted/80',
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-primary-soft text-primary group-hover:bg-primary-light/30',
                       )}
                     >
                       {m.icon}
                     </span>
                     {recommended && (
-                      <span className="text-xs font-semibold tracking-[0.08em] uppercase px-2.5 py-1 rounded-full bg-[color:var(--accent-amber)]/15 text-[color:var(--accent-amber)] border border-[color:var(--accent-amber)]/30">
+                      <span className="text-xs font-semibold tracking-[0.08em] uppercase px-2.5 py-1 rounded-full bg-accent-orange/10 text-accent-orange border border-accent-orange/25">
                         Recommended
                       </span>
                     )}
@@ -188,7 +188,7 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
                       className={cn(
                         'inline-flex items-center justify-center h-7 w-7 rounded-full transition-colors',
                         selected
-                          ? 'bg-foreground text-background'
+                          ? 'bg-primary text-primary-foreground'
                           : 'border border-border text-transparent',
                       )}
                       aria-hidden
@@ -205,7 +205,7 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
         {/* Difficulty selector (cloze only) */}
         {mode === 'cloze' && (
           <section className="dash-enter" style={{ animationDelay: '80ms' }}>
-            <p className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground mb-3">
+            <p className="text-xs font-bold tracking-[0.12em] uppercase text-muted-foreground mb-3">
               Difficulty level
             </p>
             <div className="grid grid-cols-3 gap-3">
@@ -218,10 +218,10 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
                     onClick={() => setDifficulty(d.value)}
                     aria-pressed={selected}
                     className={cn(
-                      'text-left p-4 sm:p-5 rounded-xl border bg-card transition-all duration-150 ease-out',
-                      'hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
+                      'text-left p-4 sm:p-5 rounded-2xl border bg-card cursor-pointer transition-all duration-200 ease-in-out',
+                      'hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
                       selected
-                        ? `${d.color.borderSelected} shadow-soft-lg`
+                        ? `${d.color.borderSelected} shadow-soft-lg ring-2 ring-foreground/10`
                         : `border-border shadow-soft ${d.color.border}`,
                     )}
                   >
@@ -258,7 +258,7 @@ export function DictationSetup({ video, onStart }: DictationSetupProps) {
           <button
             type="button"
             onClick={() => onStart(mode, mode === 'cloze' ? difficulty : undefined)}
-            className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-lg text-sm font-semibold bg-[color:var(--accent-emerald)] text-[color:var(--accent-emerald-foreground)] shadow-soft-lg transition-all duration-150 ease-out hover:brightness-110 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--accent-emerald)]"
+            className="inline-flex items-center justify-center gap-2 h-12 px-8 rounded-2xl text-sm font-bold tracking-wide bg-primary text-primary-foreground shadow-soft-lg transition-all duration-200 ease-in-out hover:bg-primary-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary/40"
           >
             <PlayCircle className="h-5 w-5" />
             Start practising

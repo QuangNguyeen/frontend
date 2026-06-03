@@ -74,7 +74,7 @@ export function CreateRoomModal({ open, onOpenChange }: CreateRoomModalProps) {
                 type="button"
                 onClick={() => setPickerOpen(true)}
                 className={cn(
-                  'w-full mt-1 flex items-center gap-3 p-3 rounded-lg border-2 border-dashed transition-all text-left',
+                  'w-full mt-1 flex items-center gap-3 p-3 rounded-lg border border-dashed transition-all text-left',
                   selectedVideo
                     ? 'border-primary/30 bg-primary/5 hover:border-primary/50'
                     : 'border-border hover:border-primary/30 hover:bg-muted/30',

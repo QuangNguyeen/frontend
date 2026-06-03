@@ -207,7 +207,6 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
       }
     }, [playing, audioOnly]);
 
-    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
       if (!playing || audioOnly) {
         clearTimeout(hideTimerRef.current);
@@ -217,7 +216,6 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
       }
       return () => clearTimeout(hideTimerRef.current);
     }, [playing, audioOnly]);
-    /* eslint-enable react-hooks/set-state-in-effect */
 
     // ── Keyboard shortcuts ────────────────────────────────────────────────────
     const toggleFullscreen = useCallback(async () => {
@@ -239,7 +237,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
     useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
         const tag = (document.activeElement as HTMLElement | null)?.tagName ?? '';
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return;
 
         switch (e.key) {
           case ' ':
@@ -299,7 +297,9 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
       (e: SyntheticEvent<HTMLVideoElement>) => {
         const t = e.currentTarget.currentTime;
         setCurrentTime(t);
-        onTimeUpdate?.(t);
+        // Defer the parent notification so a synchronously-fired media event
+        // can never trigger a parent setState during this component's render.
+        queueMicrotask(() => onTimeUpdate?.(t));
       },
       [onTimeUpdate],
     );
@@ -343,7 +343,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
       <div
         ref={containerRef}
         className={cn(
-          'relative aspect-video bg-black rounded-2xl overflow-hidden select-none outline-none',
+          'relative aspect-video bg-black rounded-lg overflow-hidden select-none outline-none',
           className,
         )}
         onMouseMove={resetHideTimer}
@@ -387,11 +387,11 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
                 yt?.unloadModule?.('cc');
               } catch { /* ignore */ }
             }}
-            onPlay={() => { setPlaying(true); setBuffering(false); onPlayChange?.(true); }}
-            onPause={() => { setPlaying(false); onPlayChange?.(false); }}
+            onPlay={() => { setPlaying(true); setBuffering(false); queueMicrotask(() => onPlayChange?.(true)); }}
+            onPause={() => { setPlaying(false); queueMicrotask(() => onPlayChange?.(false)); }}
             onWaiting={() => setBuffering(true)}
             onPlaying={() => setBuffering(false)}
-            onEnded={() => { setPlaying(false); onPlayChange?.(false); }}
+            onEnded={() => { setPlaying(false); queueMicrotask(() => onPlayChange?.(false)); }}
           />
         </div>
 
@@ -416,17 +416,17 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
           </div>
 
           {/* Center: thumbnail card + waveform */}
-          <div className="absolute inset-0 flex items-center justify-center gap-6">
+          <div className="absolute inset-0 flex items-center justify-center gap-4">
             <div className="relative shrink-0">
               <img
                 src={thumbUrl}
                 onError={() => setThumbFailed(true)}
-                className="w-48 h-[108px] sm:w-64 sm:h-[144px] object-cover rounded-xl shadow-2xl border border-white/10"
+                className="w-40 h-[90px] sm:w-56 sm:h-[126px] object-cover rounded-lg shadow-2xl border border-white/10"
                 alt="Video thumbnail"
               />
               {/* Play indicator overlay on thumbnail */}
               {!playing && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40">
                   <Play className="h-6 w-6 text-white fill-white" />
                 </div>
               )}
@@ -462,8 +462,8 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
         {/* ── Centre play indicator (video mode only) ───────────────────────── */}
         {!audioOnly && !buffering && !playing && (
           <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-            <div className="h-20 w-20 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm shadow-2xl">
-              <Play className="h-9 w-9 text-white fill-white ml-1" />
+            <div className="h-14 w-14 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm shadow-2xl">
+              <Play className="h-6 w-6 text-white fill-white ml-0.5" />
             </div>
           </div>
         )}
@@ -479,7 +479,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
           {/* Bottom gradient */}
           <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
 
-          <div className="relative z-10 px-4 pb-3 pt-2 flex flex-col gap-2">
+          <div className="relative z-10 px-3 pb-2.5 pt-2 flex flex-col gap-1.5">
 
             {/* ── Progress bar ─────────────────────────────────────────────── */}
             <div
