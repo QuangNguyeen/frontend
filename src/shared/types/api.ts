@@ -267,6 +267,8 @@ export interface TranscriptLanguageResponse {
 export interface TranscriptUpdateItem {
   transcript_id: string;
   text: string;
+  start_time?: number;
+  end_time?: number;
   is_deleted?: boolean;
 }
 

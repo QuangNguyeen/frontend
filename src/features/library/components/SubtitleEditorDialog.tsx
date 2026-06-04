@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FocusEvent } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Search, Trash2, Undo2 } from 'lucide-react';
 import {
   Dialog,
@@ -16,6 +17,7 @@ import {
 } from '../hooks/useVideos';
 import { extractApiError } from '@/shared/lib/httpClient';
 import { cn } from '@/lib/utils';
+import type { TranscriptUpdateItem } from '@/shared/types/api';
 
 interface Props {
   videoId: string;
@@ -24,14 +26,42 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-function formatTime(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
+/** Formats seconds as `mm:ss`, `h:mm:ss`, with a `.mmm` suffix when sub-second precision exists. */
+function formatTimeInput(seconds: number): string {
+  const s = Math.max(0, seconds);
+  const whole = Math.floor(s);
+  let ms = Math.round((s - whole) * 1000);
+  let totalWhole = whole;
+  if (ms >= 1000) {
+    totalWhole += 1;
+    ms -= 1000;
+  }
+  const h = Math.floor(totalWhole / 3600);
+  const m = Math.floor((totalWhole % 3600) / 60);
+  const sec = totalWhole % 60;
   const mm = m.toString().padStart(2, '0');
   const ss = sec.toString().padStart(2, '0');
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  const base = h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  return ms > 0 ? `${base}.${ms.toString().padStart(3, '0')}` : base;
+}
+
+/**
+ * Parses flexible timestamp input into seconds. Accepts plain seconds (`83.5`),
+ * `mm:ss(.mmm)`, or `h:mm:ss(.mmm)`. Returns null when the value is unparseable.
+ */
+function parseTimeInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':');
+  if (parts.length > 3) return null;
+  let seconds = 0;
+  for (const part of parts) {
+    if (part === '') return null;
+    const n = Number(part);
+    if (!Number.isFinite(n) || n < 0) return null;
+    seconds = seconds * 60 + n;
+  }
+  return seconds;
 }
 
 function autoResize(el: HTMLTextAreaElement | null) {
@@ -44,16 +74,42 @@ interface RowProps {
   id: string;
   index: number;
   original: string;
-  timeLabel: string;
+  startTime: number;
+  endTime: number;
+  displayStart: number;
+  displayEnd: number;
   isDeleted: boolean;
   isEdited: boolean;
+  isTimeEdited: boolean;
+  isTimeInvalid: boolean;
   onChange: (id: string, text: string, original: string) => void;
+  onTimeChange: (id: string, startStr: string, endStr: string, origStart: number, origEnd: number) => void;
   onToggleDelete: (id: string) => void;
 }
 
-const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, isEdited, onChange, onToggleDelete }: RowProps) {
+const Row = memo(function Row({
+  id,
+  index,
+  original,
+  startTime,
+  endTime,
+  displayStart,
+  displayEnd,
+  isDeleted,
+  isEdited,
+  isTimeEdited,
+  isTimeInvalid,
+  onChange,
+  onTimeChange,
+  onToggleDelete,
+}: RowProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  const timeBoxRef = useRef<HTMLDivElement>(null);
+  const [editingTime, setEditingTime] = useState(false);
+  const [startStr, setStartStr] = useState('');
+  const [endStr, setEndStr] = useState('');
 
   useEffect(() => {
     if (isEditing) {
@@ -61,28 +117,84 @@ const Row = memo(function Row({ id, index, original, timeLabel, isDeleted, isEdi
     }
   }, [isEditing]);
 
+  const beginEditTime = () => {
+    if (isDeleted) return;
+    setStartStr(formatTimeInput(displayStart));
+    setEndStr(formatTimeInput(displayEnd));
+    setEditingTime(true);
+  };
+
+  const handleTimeBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (!timeBoxRef.current?.contains(e.relatedTarget as Node | null)) {
+      setEditingTime(false);
+    }
+  };
+
   return (
     <div
       className={cn(
         'group flex gap-2 sm:gap-3 p-2.5 sm:p-3 bg-card border rounded-lg transition-all',
         isDeleted
           ? 'bg-destructive/5 border-destructive/20'
-          : isEdited
+          : isEdited || isTimeEdited
             ? 'border-primary/30 shadow-sm'
             : 'border-border hover:border-primary/20 hover:shadow-sm',
       )}
     >
       {/* Left accent for edited rows */}
-      {isEdited && !isDeleted && (
+      {(isEdited || isTimeEdited) && !isDeleted && (
         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-full" />
       )}
 
       {/* Timeline gutter */}
-      <div className="w-14 sm:w-20 shrink-0 flex flex-col items-center gap-1 border-r border-border pr-2 sm:pr-3">
+      <div className="w-16 sm:w-24 shrink-0 flex flex-col items-center gap-1 border-r border-border pr-2 sm:pr-3">
         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">#{index + 1}</span>
-        <div className="bg-muted text-[10px] text-muted-foreground px-1 sm:px-1.5 py-0.5 sm:py-1 rounded font-mono text-center leading-tight w-full font-bold whitespace-pre-line">
-          {timeLabel.replace(' – ', ' -\n')}
-        </div>
+        {editingTime && !isDeleted ? (
+          <div ref={timeBoxRef} onBlur={handleTimeBlur} className="flex flex-col gap-1 w-full">
+            <input
+              value={startStr}
+              autoFocus
+              inputMode="decimal"
+              aria-label="Start time"
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                setStartStr(e.target.value);
+                onTimeChange(id, e.target.value, endStr, startTime, endTime);
+              }}
+              className="w-full text-[10px] font-mono font-bold text-center bg-muted rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary/40"
+            />
+            <input
+              value={endStr}
+              inputMode="decimal"
+              aria-label="End time"
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                setEndStr(e.target.value);
+                onTimeChange(id, startStr, e.target.value, startTime, endTime);
+              }}
+              className="w-full text-[10px] font-mono font-bold text-center bg-muted rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary/40"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={beginEditTime}
+            disabled={isDeleted}
+            title={isDeleted ? undefined : 'Edit timing'}
+            className={cn(
+              'w-full rounded font-mono text-[10px] px-1 sm:px-1.5 py-0.5 sm:py-1 leading-tight text-center font-bold transition-colors',
+              isTimeInvalid
+                ? 'bg-destructive/10 text-destructive ring-1 ring-destructive/40'
+                : isTimeEdited
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+              isDeleted && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <span className="block">{formatTimeInput(displayStart)}</span>
+            <span className="block opacity-70">{formatTimeInput(displayEnd)}</span>
+          </button>
+        )}
       </div>
 
       {/* Text content */}
@@ -147,21 +259,38 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
 
   const currentRef = useRef<Map<string, string>>(new Map());
   const dirtySetRef = useRef<Set<string>>(new Set());
+  const timeDirtySetRef = useRef<Set<string>>(new Set());
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [timeDirtyIds, setTimeDirtyIds] = useState<Set<string>>(new Set());
+  const [pendingTimes, setPendingTimes] = useState<Map<string, { start: number; end: number }>>(
+    new Map(),
+  );
+  const [invalidTimeIds, setInvalidTimeIds] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState('');
   const [savedBanner, setSavedBanner] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const totalChanges = dirtyIds.size + deletedIds.size;
+  const changedIds = useMemo(() => {
+    const ids = new Set<string>();
+    dirtyIds.forEach((id) => ids.add(id));
+    timeDirtyIds.forEach((id) => ids.add(id));
+    deletedIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [dirtyIds, timeDirtyIds, deletedIds]);
+  const totalChanges = changedIds.size;
 
   useEffect(() => {
     if (!open) return;
     currentRef.current = new Map();
     dirtySetRef.current = new Set();
+    timeDirtySetRef.current = new Set();
     queueMicrotask(() => {
       setDirtyIds(new Set());
       setDeletedIds(new Set());
+      setTimeDirtyIds(new Set());
+      setInvalidTimeIds(new Set());
+      setPendingTimes(new Map());
       setSaveError('');
       setSavedBanner(false);
       setSearchQuery('');
@@ -172,28 +301,49 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     if (!open) return;
     currentRef.current = new Map();
     dirtySetRef.current = new Set();
+    timeDirtySetRef.current = new Set();
     queueMicrotask(() => {
       setDirtyIds(new Set());
       setDeletedIds(new Set());
+      setTimeDirtyIds(new Set());
+      setInvalidTimeIds(new Set());
+      setPendingTimes(new Map());
     });
   }, [transcripts, open]);
 
   const handleSave = useCallback(() => {
     if (totalChanges === 0) return;
+    if (invalidTimeIds.size > 0) {
+      setSaveError('Some timestamps are invalid. End time must be greater than start time.');
+      return;
+    }
 
-    const items = [
-      ...Array.from(deletedIds).map((id) => ({
+    const ids = new Set<string>([
+      ...deletedIds,
+      ...dirtySetRef.current,
+      ...timeDirtySetRef.current,
+    ]);
+
+    const items: TranscriptUpdateItem[] = [];
+    ids.forEach((id) => {
+      if (deletedIds.has(id)) {
+        items.push({ transcript_id: id, text: '', is_deleted: true });
+        return;
+      }
+      // Empty text tells the backend to keep the existing text (time-only edits).
+      const item: TranscriptUpdateItem = {
         transcript_id: id,
-        text: '',
-        is_deleted: true as const,
-      })),
-      ...Array.from(dirtySetRef.current)
-        .filter((id) => !deletedIds.has(id))
-        .map((id) => ({
-          transcript_id: id,
-          text: currentRef.current.get(id) ?? '',
-        })),
-    ];
+        text: dirtySetRef.current.has(id) ? currentRef.current.get(id) ?? '' : '',
+      };
+      if (timeDirtySetRef.current.has(id)) {
+        const times = pendingTimes.get(id);
+        if (times) {
+          item.start_time = times.start;
+          item.end_time = times.end;
+        }
+      }
+      items.push(item);
+    });
 
     if (items.length === 0) return;
 
@@ -207,7 +357,7 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
         onError: (err) => setSaveError(extractApiError(err, 'Failed to save subtitles')),
       },
     );
-  }, [deletedIds, totalChanges, updateMutation]);
+  }, [deletedIds, totalChanges, invalidTimeIds, pendingTimes, updateMutation]);
 
   // Ctrl+S keyboard shortcut
   useEffect(() => {
@@ -239,6 +389,43 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     if (saveError) setSaveError('');
   }, [savedBanner, saveError]);
 
+  const handleTimeChange = useCallback(
+    (id: string, startInput: string, endInput: string, origStart: number, origEnd: number) => {
+      const start = parseTimeInput(startInput);
+      const end = parseTimeInput(endInput);
+      const valid = start !== null && end !== null && start >= 0 && end > start;
+
+      setInvalidTimeIds((prev) => {
+        const next = new Set(prev);
+        if (valid) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+
+      const isDirty = valid && (start !== origStart || end !== origEnd);
+      if (valid && isDirty) {
+        timeDirtySetRef.current.add(id);
+      } else if (valid) {
+        timeDirtySetRef.current.delete(id);
+      } else {
+        // Unparseable / inverted: keep it flagged as a pending change so Save stays
+        // blocked and Undo All remains available.
+        timeDirtySetRef.current.add(id);
+      }
+      setTimeDirtyIds(new Set(timeDirtySetRef.current));
+      setPendingTimes((prev) => {
+        const next = new Map(prev);
+        if (valid && isDirty) next.set(id, { start: start!, end: end! });
+        else next.delete(id);
+        return next;
+      });
+
+      if (savedBanner) setSavedBanner(false);
+      if (saveError) setSaveError('');
+    },
+    [savedBanner, saveError],
+  );
+
   const handleToggleDelete = useCallback((id: string) => {
     setDeletedIds((prev) => {
       const next = new Set(prev);
@@ -257,20 +444,30 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
     setDeletedIds(new Set());
     dirtySetRef.current = new Set();
     currentRef.current = new Map();
+    timeDirtySetRef.current = new Set();
     setDirtyIds(new Set());
+    setTimeDirtyIds(new Set());
+    setInvalidTimeIds(new Set());
+    setPendingTimes(new Map());
     setSaveError('');
     setSavedBanner(false);
   }, []);
 
   const rows = useMemo(
     () =>
-      transcripts.map((t) => ({
-        id: t.id,
-        index: t.index,
-        original: t.text,
-        timeLabel: `${formatTime(t.start_time)} – ${formatTime(t.end_time)}`,
-      })),
-    [transcripts],
+      transcripts.map((t) => {
+        const pending = pendingTimes.get(t.id);
+        return {
+          id: t.id,
+          index: t.index,
+          original: t.text,
+          startTime: t.start_time,
+          endTime: t.end_time,
+          displayStart: pending ? pending.start : t.start_time,
+          displayEnd: pending ? pending.end : t.end_time,
+        };
+      }),
+    [transcripts, pendingTimes],
   );
 
   const filteredRows = useMemo(() => {
@@ -354,10 +551,16 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
                   id={row.id}
                   index={row.index}
                   original={row.original}
-                  timeLabel={row.timeLabel}
+                  startTime={row.startTime}
+                  endTime={row.endTime}
+                  displayStart={row.displayStart}
+                  displayEnd={row.displayEnd}
                   isDeleted={deletedIds.has(row.id)}
                   isEdited={dirtyIds.has(row.id)}
+                  isTimeEdited={timeDirtyIds.has(row.id) && !invalidTimeIds.has(row.id)}
+                  isTimeInvalid={invalidTimeIds.has(row.id)}
                   onChange={handleRowChange}
+                  onTimeChange={handleTimeChange}
                   onToggleDelete={handleToggleDelete}
                 />
               ))
@@ -399,14 +602,17 @@ export function SubtitleEditorDialog({ videoId, videoTitle, open, onOpenChange }
             </Button>
             <Button
               onClick={handleSave}
-              disabled={totalChanges === 0 || updateMutation.isPending}
+              disabled={totalChanges === 0 || updateMutation.isPending || invalidTimeIds.size > 0}
               className={cn(
                 'px-5 rounded-lg font-semibold shadow-md gap-2',
-                deletedIds.size > 0 && dirtyIds.size === 0 && 'bg-destructive hover:bg-destructive/90',
+                deletedIds.size > 0 &&
+                  dirtyIds.size === 0 &&
+                  timeDirtyIds.size === 0 &&
+                  'bg-destructive hover:bg-destructive/90',
               )}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {deletedIds.size > 0 && dirtyIds.size === 0
+              {deletedIds.size > 0 && dirtyIds.size === 0 && timeDirtyIds.size === 0
                 ? `Delete ${deletedIds.size}`
                 : 'Save'}
               {totalChanges > 0 && (
