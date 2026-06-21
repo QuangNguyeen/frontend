@@ -4,8 +4,9 @@ import {
   ArrowLeft, RotateCcw, Play, Pause,
   ChevronLeft, ChevronRight, ChevronDown, Trophy,
   Loader2, AlertCircle, CheckCircle2, XCircle,
-  MinusCircle, Languages, List,
+  MinusCircle, Languages, List, MessageSquareWarning,
 } from 'lucide-react';
+import { TranscriptFeedbackDialog } from '@/features/my-practice/components/TranscriptFeedbackDialog';
 import { YoutubePlayer } from './YoutubePlayer';
 import type { YoutubePlayerHandle } from './YoutubePlayer';
 import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
@@ -220,17 +221,15 @@ function DictationInputPanel({
           <div className="h-full w-1/3 bg-primary/40 animate-[indeterminate_1.5s_ease-in-out_infinite]" />
         </div>
       )}
-      <div
-        className={cn(
-          'min-h-10 max-h-20 overflow-y-auto rounded-lg border px-3 py-2 text-xs',
-          isRetry
-            ? 'border-accent-orange/25 bg-accent-orange/10 text-accent-orange'
-            : latestDiffCheck
-              ? 'border-[color:var(--badge-success)]/25 bg-[color:var(--badge-success)]/10 text-[color:var(--badge-success)]'
-              : 'border-border bg-primary-soft/35 text-muted-foreground',
-        )}
-      >
-        {latestDiffCheck && currentSentence && videoId ? (
+      {latestDiffCheck && currentSentence && videoId && (
+        <div
+          className={cn(
+            'min-h-10 max-h-20 overflow-y-auto rounded-lg border px-3 py-2 text-xs',
+            isRetry
+              ? 'border-accent-orange/25 bg-accent-orange/10 text-accent-orange'
+              : 'border-[color:var(--badge-success)]/25 bg-[color:var(--badge-success)]/10 text-[color:var(--badge-success)]',
+          )}
+        >
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">
               <span className="inline-flex items-center gap-1.5 font-bold">
@@ -253,13 +252,8 @@ function DictationInputPanel({
               />
             </div>
           </div>
-        ) : (
-          <div className="flex h-7 items-center justify-between gap-3">
-            <span className="font-medium">Check your answer to see feedback here.</span>
-            <span className="hidden font-semibold text-primary-hover sm:inline">Stable feedback area</span>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <textarea
         ref={inputRef}
@@ -337,6 +331,9 @@ export function DictationPage() {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [playCount, setPlayCount] = useState(0);
+
+  // ── Transcript feedback ────────────────────────────────────────────────────
+  const [feedback, setFeedback] = useState<{ transcriptId?: string; segmentText?: string } | null>(null);
 
   // ── Word popover state ─────────────────────────────────────────────────────
   const sentenceQueryClient = useQueryClient();
@@ -846,6 +843,14 @@ export function DictationPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="text-base font-bold truncate flex-1 min-w-0">{video.title}</h1>
+        <button
+          onClick={() => setFeedback({})}
+          title="Report a transcript issue for this video"
+          className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-primary-soft transition-colors shrink-0"
+        >
+          <MessageSquareWarning className="h-4 w-4" />
+          Report issue
+        </button>
         <span className="text-sm font-bold text-primary-hover bg-primary-soft px-3 py-1.5 rounded-lg tabular-nums shrink-0">
           {currentIndex + 1}/{totalSentences}
         </span>
@@ -857,10 +862,10 @@ export function DictationPage() {
 
         {/* ── CENTER — main practice area ── */}
         <main className="flex-1 min-h-0 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-3">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2.5">
 
-            {/* Video player — full width */}
-            <div className="rounded-[18px] overflow-hidden border border-border bg-card shadow-soft shrink-0">
+            {/* Video player — height-capped so controls + input stay on screen */}
+            <div className="mx-auto w-full max-w-[min(100%,calc((100dvh-21rem)*16/9))] rounded-[18px] overflow-hidden border border-border bg-card shadow-soft shrink-0">
               <YoutubePlayer
                 ref={playerHandle}
                 videoId={video.youtube_id}
@@ -970,6 +975,21 @@ export function DictationPage() {
                 onRevealAll={handleRevealAllHints}
                 allRevealed={allHintsRevealed}
               />
+            )}
+
+            {/* Segment-level transcript feedback */}
+            {currentSentence && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() =>
+                    setFeedback({ transcriptId: currentSentence.id, segmentText: currentSentence.text })
+                  }
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <MessageSquareWarning className="h-3.5 w-3.5" />
+                  Report issue with this segment
+                </button>
+              </div>
             )}
 
             {/* Completed result */}
@@ -1222,6 +1242,17 @@ export function DictationPage() {
           onSave={handlePopoverSave}
           onPlayAudio={() => {}}
           onDismiss={handleDismissPopover}
+        />
+      )}
+
+      {/* Transcript feedback (video- or segment-level) */}
+      {videoId && feedback && (
+        <TranscriptFeedbackDialog
+          videoId={videoId}
+          transcriptId={feedback.transcriptId}
+          segmentText={feedback.segmentText}
+          open={Boolean(feedback)}
+          onOpenChange={(open) => !open && setFeedback(null)}
         />
       )}
     </div>

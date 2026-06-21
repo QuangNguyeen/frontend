@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, Loader2, MoreHorizontal, RefreshCcw, Search, ShieldCheck, UserRound, Users } from 'lucide-react';
+import { ArrowRight, CalendarClock, Loader2, MoreHorizontal, RefreshCcw, Search, ShieldCheck, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +11,23 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { AppSelect } from '@/components/ui/app-select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { AdminUserResponse } from '@/shared/types/api';
 import { useAdminUser, useAdminUsers, usePatchAdminUser } from '../../hooks/useAdmin';
 import { AdminPageShell } from '../AdminPageShell';
 import { AdminPagination } from '../AdminPagination';
+import { AdminEmptyState, AdminLoadingSkeleton } from '../AdminStates';
 
 const ROLE_OPTIONS = [
   { value: '', label: 'All roles' },
@@ -64,6 +76,10 @@ export function AdminUsersPage() {
   const [active, setActive] = useState('');
   const [page, setPage] = useState(1);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    user: AdminUserResponse;
+    type: 'role' | 'active';
+  } | null>(null);
   const pageSize = 20;
 
   const params = useMemo(
@@ -81,9 +97,25 @@ export function AdminUsersPage() {
   const selectedUser = useAdminUser(selectedUserId);
   const patchUser = usePatchAdminUser();
 
+  const confirmAction = () => {
+    if (!pendingAction) return;
+    const { user, type } = pendingAction;
+    patchUser.mutate(
+      {
+        userId: user.id,
+        data:
+          type === 'role'
+            ? { is_admin: !user.is_admin }
+            : { is_active: !user.is_active },
+      },
+      { onSettled: () => setPendingAction(null) },
+    );
+  };
+
   return (
     <AdminPageShell
       title="Users"
+      description="Search accounts, review learning activity, and manage access."
       actions={
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
@@ -119,7 +151,7 @@ export function AdminUsersPage() {
         </div>
       }
     >
-      <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <>
         <Card className="flex min-h-[520px] flex-col overflow-hidden">
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5">
             <div className="flex items-center gap-2 text-sm font-bold">
@@ -130,9 +162,7 @@ export function AdminUsersPage() {
           </div>
 
           {isLoading ? (
-            <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
+            <AdminLoadingSkeleton rows={8} />
           ) : (
             <>
               <div className="min-h-0 flex-1 overflow-auto scrollbar-stable">
@@ -152,7 +182,11 @@ export function AdminUsersPage() {
                     {(data?.items ?? []).map((user) => {
                       const isSelf = user.id === currentUser?.id;
                       return (
-                        <tr key={user.id} className="align-middle">
+                        <tr
+                          key={user.id}
+                          className="h-12 cursor-pointer align-middle transition-colors hover:bg-muted/35"
+                          onClick={() => setSelectedUserId(user.id)}
+                        >
                           <td className="px-4 py-2.5">
                             <div className="flex min-w-0 items-center gap-3">
                               <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-extrabold text-primary">
@@ -191,12 +225,10 @@ export function AdminUsersPage() {
                                 size="sm"
                                 className="h-8 px-2.5 text-xs"
                                 disabled={isSelf && user.is_admin}
-                                onClick={() =>
-                                  patchUser.mutate({
-                                    userId: user.id,
-                                    data: { is_admin: !user.is_admin },
-                                  })
-                                }
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPendingAction({ user, type: 'role' });
+                                }}
                               >
                                 {user.is_admin ? 'Revoke' : 'Admin'}
                               </Button>
@@ -209,16 +241,17 @@ export function AdminUsersPage() {
                                 <DropdownMenuContent align="end" className="w-40">
                                   <DropdownMenuItem
                                     disabled={isSelf}
-                                    onClick={() =>
-                                      patchUser.mutate({
-                                        userId: user.id,
-                                        data: { is_active: !user.is_active },
-                                      })
-                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setPendingAction({ user, type: 'active' });
+                                    }}
                                   >
                                     {user.is_active ? 'Deactivate' : 'Activate'}
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setSelectedUserId(user.id)}>
+                                  <DropdownMenuItem onClick={(event) => {
+                                    event.stopPropagation();
+                                    setSelectedUserId(user.id);
+                                  }}>
                                     View stats
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -232,9 +265,12 @@ export function AdminUsersPage() {
                 </table>
               </div>
               {data?.items.length === 0 && (
-                <div className="flex min-h-[180px] items-center justify-center text-sm text-muted-foreground">
-                  No users match the current filters.
-                </div>
+                <AdminEmptyState
+                  compact
+                  title="No matching users"
+                  description="Adjust the search or account filters and try again."
+                  icon={Users}
+                />
               )}
               <AdminPagination
                 page={page}
@@ -248,18 +284,17 @@ export function AdminUsersPage() {
           )}
         </Card>
 
-        <Card className="p-4 xl:self-start">
-          {!selectedUserId ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center text-center text-muted-foreground">
-              <UserRound className="mb-3 size-10" />
-              <p className="text-sm font-semibold">Select a user to view profile stats</p>
-            </div>
-          ) : selectedUser.isLoading ? (
-            <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          ) : selectedUser.data ? (
-            <div>
+        <Sheet open={Boolean(selectedUserId)} onOpenChange={(open) => !open && setSelectedUserId(null)}>
+          <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-5 sm:w-[420px]">
+            <SheetHeader>
+              <SheetTitle>User overview</SheetTitle>
+            </SheetHeader>
+            {selectedUser.isLoading ? (
+              <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            ) : selectedUser.data ? (
+              <div className="mt-2">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
@@ -294,14 +329,51 @@ export function AdminUsersPage() {
                 <CalendarClock className="size-4 text-primary" />
                 Joined {formatDate(selectedUser.data.created_at)}
               </div>
-            </div>
-          ) : (
-            <div className="flex min-h-[260px] items-center justify-center text-sm text-muted-foreground">
-              Unable to load user detail.
-            </div>
-          )}
-        </Card>
-      </div>
+              <Button asChild className="mt-4 w-full">
+                <Link to={`/admin/users/${selectedUser.data.id}`}>
+                  Open full profile
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              </div>
+            ) : (
+              <div className="flex min-h-[260px] items-center justify-center text-sm text-muted-foreground">
+                Unable to load user detail.
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+
+        <AlertDialog open={Boolean(pendingAction)} onOpenChange={(open) => !open && setPendingAction(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {pendingAction?.type === 'role'
+                  ? pendingAction.user.is_admin ? 'Revoke administrator access?' : 'Grant administrator access?'
+                  : pendingAction?.user.is_active ? 'Deactivate this account?' : 'Activate this account?'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingAction?.type === 'role'
+                  ? `This changes the permissions available to ${pendingAction.user.display_name}.`
+                  : `This changes whether ${pendingAction?.user.display_name ?? 'this user'} can sign in and use the application.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={patchUser.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant={pendingAction?.type === 'active' && pendingAction.user.is_active ? 'destructive' : 'default'}
+                disabled={patchUser.isPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  confirmAction();
+                }}
+              >
+                {patchUser.isPending ? <Loader2 className="size-4 animate-spin" /> : 'Confirm'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     </AdminPageShell>
   );
 }

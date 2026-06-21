@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Loader2,
   MoreHorizontal,
@@ -10,7 +11,21 @@ import {
   Power,
   PowerOff,
   Gauge,
+  Hash,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { TagMultiSelect } from '@/components/ui/tag-multi-select';
+import { TopicTagChips } from '@/components/ui/topic-tag-chips';
+import { extractApiError } from '@/shared/lib/httpClient';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,14 +57,17 @@ import {
   isLevelValidForLanguage,
 } from '@/shared/lib/languageLevels';
 import {
+  useAdminTopicTags,
   useAdminVideos,
   useDeleteAdminVideo,
   usePatchAdminVideo,
   useRecalculateAdminDifficulty,
   useRetryAdminTranscription,
+  useSetVideoTopicTags,
 } from '../../hooks/useAdmin';
 import { AdminPageShell } from '../AdminPageShell';
 import { AdminPagination } from '../AdminPagination';
+import { AdminEmptyState, AdminLoadingSkeleton } from '../AdminStates';
 
 const LANGUAGE_FILTER_OPTIONS = [
   { value: '', label: 'All languages' },
@@ -126,7 +144,7 @@ function StatusBadge({ video }: { video: AdminVideoResponse }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-bold ${statusClass}`}>
-        {video.transcription_status}
+        {STATUS_LABELS[video.transcription_status] ?? video.transcription_status}
       </span>
       <span
         className={
@@ -180,12 +198,16 @@ function VideoActions({
   onRetry,
   onRecalculate,
   onDelete,
+  onEditTags,
+  pending,
 }: {
   video: AdminVideoResponse;
   onPatch: (data: { is_active?: boolean; is_curated?: boolean }) => void;
   onRetry: () => void;
   onRecalculate: () => void;
   onDelete: () => void;
+  onEditTags: () => void;
+  pending: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const canRetry =
@@ -196,8 +218,8 @@ function VideoActions({
     <>
       <div className="flex items-center justify-end gap-1.5">
         {canRetry ? (
-          <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5 text-xs" onClick={onRetry}>
-            <WandSparkles className="size-3.5" />
+          <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5 text-xs" onClick={onRetry} disabled={pending}>
+            {pending ? <Loader2 className="size-3.5 animate-spin" /> : <WandSparkles className="size-3.5" />}
             Retry
           </Button>
         ) : (
@@ -206,6 +228,7 @@ function VideoActions({
             size="sm"
             className="h-8 gap-1 px-2.5 text-xs"
             onClick={() => onPatch({ is_active: !video.is_active })}
+            disabled={pending}
           >
             {video.is_active ? <PowerOff className="size-3.5" /> : <Power className="size-3.5" />}
             {video.is_active ? 'Deactivate' : 'Activate'}
@@ -214,7 +237,7 @@ function VideoActions({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="More actions" disabled={pending}>
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -227,6 +250,10 @@ function VideoActions({
             )}
             <DropdownMenuItem onClick={() => onPatch({ is_curated: !video.is_curated })}>
               {video.is_curated ? 'Remove curated' : 'Mark curated'}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onEditTags}>
+              <Hash className="size-4" />
+              Edit public tags
             </DropdownMenuItem>
             {!canRetry && video.transcription_status === 'ready' && (
               <DropdownMenuItem onClick={onRetry}>
@@ -308,16 +335,118 @@ function InlineLevelSelect({
   );
 }
 
+function VideoTopicTagsDialog({
+  video,
+  open,
+  onOpenChange,
+}: {
+  video: AdminVideoResponse | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { data: allTags = [] } = useAdminTopicTags(true);
+  const activeTags = useMemo(() => allTags.filter((t) => t.is_active), [allTags]);
+  const setTags = useSetVideoTopicTags();
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const [videoId, setVideoId] = useState<string | null>(null);
+
+  if (open && video && videoId !== video.id) {
+    setVideoId(video.id);
+    setTagIds((video.topic_tags ?? []).map((t) => t.id));
+    setError('');
+  }
+  if (!open && videoId !== null) setVideoId(null);
+
+  if (!video) return null;
+
+  const handleSubmit = () => {
+    if (setTags.isPending) return;
+    setTags.mutate(
+      { videoId: video.id, data: { topic_tag_ids: tagIds } },
+      {
+        onSuccess: () => {
+          toast.success('Public topic tags updated');
+          onOpenChange(false);
+        },
+        onError: (err) => setError(extractApiError(err, 'Failed to update tags')),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Public topic tags</DialogTitle>
+          <DialogDescription className="line-clamp-2">{video.title}</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {video.topic_tags && video.topic_tags.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Current</Label>
+              <TopicTagChips publicTags={video.topic_tags} />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="video-tags">Replace with</Label>
+            <TagMultiSelect
+              id="video-tags"
+              options={activeTags}
+              value={tagIds}
+              onChange={setTagIds}
+              placeholder="Select active topic tags"
+              emptyText="No active topic tags"
+            />
+          </div>
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={setTags.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={setTags.isPending}>
+            {setTags.isPending ? <Loader2 className="size-4 animate-spin" /> : 'Save tags'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function AdminVideosPage() {
-  const [filters, setFilters] = useState<AdminVideoFilters>({
-    search: '',
-    status: '',
-    language: '',
-    level: '',
-    curated: '',
-  });
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSearch = searchParams.get('q') ?? '';
+  const filters: AdminVideoFilters = {
+    search: urlSearch,
+    status: searchParams.get('status') ?? '',
+    language: searchParams.get('language') ?? '',
+    level: searchParams.get('level') ?? '',
+    curated: searchParams.get('curated') ?? '',
+  };
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const [searchInput, setSearchInput] = useState(urlSearch);
   const pageSize = 20;
+
+  useEffect(() => {
+    setSearchInput(urlSearch);
+  }, [urlSearch]);
+
+  useEffect(() => {
+    if (searchInput === urlSearch) return;
+    const timer = window.setTimeout(() => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (searchInput.trim()) next.set('q', searchInput.trim());
+        else next.delete('q');
+        next.delete('page');
+        return next;
+      }, { replace: true });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, setSearchParams, urlSearch]);
 
   const params = useMemo(
     () => ({
@@ -329,7 +458,7 @@ export function AdminVideosPage() {
       page,
       page_size: pageSize,
     }),
-    [filters, page],
+    [filters.curated, filters.language, filters.level, filters.search, filters.status, page],
   );
 
   const levelFilterOptions = useMemo(
@@ -346,28 +475,39 @@ export function AdminVideosPage() {
   );
 
   const updateFilter = (key: keyof AdminVideoFilters, value: string) => {
-    setFilters((current) => ({ ...current, [key]: value }));
-    setPage(1);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      const paramKey = key === 'search' ? 'q' : key;
+      if (value) next.set(paramKey, value);
+      else next.delete(paramKey);
+      next.delete('page');
+      return next;
+    });
   };
 
   const handleLanguageChange = (language: string) => {
-    setFilters((current) => ({
-      ...current,
-      language,
-      level: isLevelValidForLanguage(language, current.level) ? current.level : '',
-    }));
-    setPage(1);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (language) next.set('language', language);
+      else next.delete('language');
+      if (!isLevelValidForLanguage(language, filters.level)) next.delete('level');
+      next.delete('page');
+      return next;
+    });
   };
 
   const clearFilters = () => {
-    setFilters({
-      search: '',
-      status: '',
-      language: '',
-      level: '',
-      curated: '',
+    setSearchInput('');
+    setSearchParams({}, { replace: true });
+  };
+
+  const setPage = (nextPage: number) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (nextPage > 1) next.set('page', String(nextPage));
+      else next.delete('page');
+      return next;
     });
-    setPage(1);
   };
 
   const { data, isLoading, isFetching, refetch } = useAdminVideos(params);
@@ -376,9 +516,12 @@ export function AdminVideosPage() {
   const retryTranscription = useRetryAdminTranscription();
   const recalculateDifficulty = useRecalculateAdminDifficulty();
 
+  const [tagsTarget, setTagsTarget] = useState<AdminVideoResponse | null>(null);
+
   return (
     <AdminPageShell
       title="Videos"
+      description="Manage catalog visibility, transcription health, levels, and public tags."
       actions={
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
@@ -386,12 +529,12 @@ export function AdminVideosPage() {
         </Button>
       }
       toolbar={
-        <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_145px_145px_145px_130px_auto]">
+        <div className="grid gap-2 xl:grid-cols-[minmax(240px,1fr)_145px_145px_minmax(220px,auto)]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              value={filters.search}
-              onChange={(event) => updateFilter('search', event.target.value)}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
               className="h-9 pl-9"
               placeholder="Search title, channel, YouTube ID"
             />
@@ -408,22 +551,26 @@ export function AdminVideosPage() {
             options={LANGUAGE_FILTER_OPTIONS}
             size="sm"
           />
-          <AppSelect
-            value={filters.level}
-            onValueChange={(val) => updateFilter('level', val)}
-            options={levelFilterOptions}
-            disabled={!filters.language}
-            size="sm"
-          />
-          <AppSelect
-            value={filters.curated}
-            onValueChange={(val) => updateFilter('curated', val)}
-            options={CURATED_OPTIONS}
-            size="sm"
-          />
-          <Button variant="outline" size="sm" className="h-9 whitespace-nowrap" onClick={clearFilters} disabled={!hasActiveFilters}>
-            Clear filters
-          </Button>
+          <div className="flex gap-2">
+            <AppSelect
+              value={filters.level}
+              onValueChange={(val) => updateFilter('level', val)}
+              options={levelFilterOptions}
+              disabled={!filters.language}
+              size="sm"
+              triggerClassName="min-w-28"
+            />
+            <AppSelect
+              value={filters.curated}
+              onValueChange={(val) => updateFilter('curated', val)}
+              options={CURATED_OPTIONS}
+              size="sm"
+              triggerClassName="min-w-32"
+            />
+            <Button variant="outline" size="sm" className="h-9 whitespace-nowrap" onClick={clearFilters} disabled={!hasActiveFilters}>
+              Clear
+            </Button>
+          </div>
         </div>
       }
     >
@@ -438,9 +585,7 @@ export function AdminVideosPage() {
         </div>
 
         {isLoading ? (
-          <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-          </div>
+          <AdminLoadingSkeleton rows={8} />
         ) : (
           <>
             <div className="min-h-0 flex-1 overflow-auto scrollbar-stable">
@@ -457,7 +602,7 @@ export function AdminVideosPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {(data?.items ?? []).map((video) => (
-                    <tr key={video.id} className="align-middle">
+                    <tr key={video.id} className="h-12 align-middle">
                       <td className="px-4 py-2.5">
                         <div className="flex min-w-0 items-center gap-3">
                           {video.thumbnail_url ? (
@@ -516,12 +661,34 @@ export function AdminVideosPage() {
                       <td className="admin-actions-col px-4 py-2.5">
                         <VideoActions
                           video={video}
-                          onPatch={(data) =>
-                            patchVideo.mutate({ videoId: video.id, data })
+                          pending={
+                            (patchVideo.isPending && patchVideo.variables?.videoId === video.id) ||
+                            (retryTranscription.isPending && retryTranscription.variables === video.id) ||
+                            (recalculateDifficulty.isPending && recalculateDifficulty.variables === video.id) ||
+                            (deleteVideo.isPending && deleteVideo.variables === video.id)
                           }
-                          onRetry={() => retryTranscription.mutate(video.id)}
-                          onRecalculate={() => recalculateDifficulty.mutate(video.id)}
-                          onDelete={() => deleteVideo.mutate(video.id)}
+                          onPatch={(patch) =>
+                            patchVideo.mutate(
+                              { videoId: video.id, data: patch },
+                              {
+                                onSuccess: () => toast.success('Video updated'),
+                                onError: (error) => toast.error(extractApiError(error, 'Could not update video')),
+                              },
+                            )
+                          }
+                          onRetry={() => retryTranscription.mutate(video.id, {
+                            onSuccess: () => toast.success('Transcription queued'),
+                            onError: (error) => toast.error(extractApiError(error, 'Could not queue transcription')),
+                          })}
+                          onRecalculate={() => recalculateDifficulty.mutate(video.id, {
+                            onSuccess: () => toast.success('Difficulty recalculated'),
+                            onError: (error) => toast.error(extractApiError(error, 'Could not recalculate difficulty')),
+                          })}
+                          onDelete={() => deleteVideo.mutate(video.id, {
+                            onSuccess: () => toast.success('Video deleted'),
+                            onError: (error) => toast.error(extractApiError(error, 'Could not delete video')),
+                          })}
+                          onEditTags={() => setTagsTarget(video)}
                         />
                       </td>
                     </tr>
@@ -530,14 +697,17 @@ export function AdminVideosPage() {
               </table>
             </div>
             {data?.items.length === 0 && (
-              <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-4 text-center text-sm text-muted-foreground">
-                <span>{buildEmptyStateText(filters)}</span>
-                {hasActiveFilters && (
+              <AdminEmptyState
+                compact
+                title="No matching videos"
+                description={buildEmptyStateText(filters)}
+                icon={Video}
+                action={hasActiveFilters ? (
                   <Button variant="outline" size="sm" onClick={clearFilters}>
                     Clear filters
                   </Button>
-                )}
-              </div>
+                ) : undefined}
+              />
             )}
             <AdminPagination
               page={page}
@@ -550,6 +720,12 @@ export function AdminVideosPage() {
           </>
         )}
       </Card>
+
+      <VideoTopicTagsDialog
+        video={tagsTarget}
+        open={Boolean(tagsTarget)}
+        onOpenChange={(open) => !open && setTagsTarget(null)}
+      />
     </AdminPageShell>
   );
 }

@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLibraryFiltersStore } from '../hooks/useLibraryFiltersStore';
-import { useVideos, useImportVideo, useDeleteVideo } from '../hooks/useVideos';
+import { useVideos, useDeleteVideo } from '../hooks/useVideos';
+import { useActiveTopicTags } from '../hooks/useTopicTags';
 import { SubtitleEditorDialog } from './SubtitleEditorDialog';
+import { ImportVideoDialog } from '@/features/my-practice/components/ImportVideoDialog';
+import { TopicTagChips } from '@/components/ui/topic-tag-chips';
+import { TagMultiSelect } from '@/components/ui/tag-multi-select';
 import {
   Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
   Loader2, AlertCircle, Trash2, Pencil, Puzzle, Check,
-  PlayCircle, AlertTriangle, Shuffle,
+  PlayCircle, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppInput } from '@/components/ui/app-input';
@@ -21,8 +25,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { AppSelect } from '@/components/ui/app-select';
-import { extractApiError } from '@/shared/lib/httpClient';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { VideoResponse, ClozeDifficulty } from '@/shared/types/api';
 import {
   LANGUAGE_OPTIONS as SHARED_LANGUAGE_OPTIONS,
@@ -77,12 +81,6 @@ const MODES: ModeOption[] = [
     tagline: 'Fill in the blanks within a paragraph.',
     icon: <Puzzle className="h-4 w-4" />,
   },
-  {
-    value: 'quiz',
-    title: 'Word ordering',
-    tagline: 'Reconstruct sentences from scrambled words.',
-    icon: <Shuffle className="h-4 w-4" />,
-  },
 ];
 
 const DIFFICULTIES: { value: ClozeDifficulty; label: string; blanks: string; color: { border: string; borderSelected: string; bg: string; icon: string; check: string } }[] = [
@@ -114,10 +112,6 @@ function ModeSelectDialog({
   const [difficulty, setDifficulty] = useState<ClozeDifficulty>('medium');
 
   const handleStart = () => {
-    if (mode === 'quiz') {
-      navigate(`/quiz/${video.id}`);
-      return;
-    }
     const params = new URLSearchParams({ mode });
     if (mode === 'cloze') params.set('difficulty', difficulty);
     navigate(`/dictation/${video.id}?${params.toString()}`);
@@ -215,12 +209,12 @@ function ModeSelectDialog({
   );
 }
 
-function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: string) => void }) {
+function VideoCard({ video, onDelete, isAdmin, onTagFilter }: { video: VideoResponse; onDelete: (id: string) => void; isAdmin: boolean; onTagFilter: (slug: string) => void }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
   return (
-    <div className="group bg-card border border-border rounded-2xl overflow-hidden shadow-soft hover:shadow-soft-lg transition-all duration-200 hover:border-primary/30 flex flex-col">
-      <div className="relative aspect-video bg-muted overflow-hidden">
+    <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-soft-lg">
+      <div className="relative aspect-video shrink-0 bg-muted overflow-hidden">
         <img
           src={video.thumbnail_url}
           alt={video.title}
@@ -247,35 +241,38 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
             Curated
           </div>
         )}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/60 hover:bg-destructive text-white rounded-full p-1.5"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to delete this video?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently remove
-                &ldquo;{video.title}&rdquo; from your library. Your past
-                dictation history for this video will be kept safe.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => onDelete(video.id)}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        {isAdmin && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/60 hover:bg-destructive text-white rounded-full p-1.5"
+                aria-label="Delete shared video"
               >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this shared video?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This is an admin-level action. It removes the shared video
+                  &ldquo;{video.title}&rdquo; and its transcript from the catalog for
+                  everyone. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(video.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       <div className="p-4 flex flex-col flex-1">
@@ -305,20 +302,30 @@ function VideoCard({ video, onDelete }: { video: VideoResponse; onDelete: (id: s
           </div>
         )}
         {video.play_count === 0 && <div className="mb-1" />}
+        {video.topic_tags && video.topic_tags.length > 0 && (
+          <div className="mb-3">
+            <TopicTagChips
+              publicTags={video.topic_tags}
+              onTagClick={(tag) => onTagFilter(tag.slug)}
+            />
+          </div>
+        )}
         <div className="mt-auto flex gap-2">
           <Button className="flex-1" size="sm" onClick={() => setModeDialogOpen(true)}>
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Practice
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEditorOpen(true)}
-            title="Edit subtitles"
-          >
-            <Pencil className="h-3.5 w-3.5 mr-1.5" />
-            Edit
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditorOpen(true)}
+              title="Edit subtitles (admin)"
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Edit
+            </Button>
+          )}
         </div>
       </div>
       <SubtitleEditorDialog
@@ -341,9 +348,14 @@ export function LibraryPage() {
   const search           = useLibraryFiltersStore((s) => s.search);
   const selectedLang     = useLibraryFiltersStore((s) => s.selectedLang);
   const selectedLevel    = useLibraryFiltersStore((s) => s.selectedLevel);
+  const selectedTopics   = useLibraryFiltersStore((s) => s.selectedTopics);
   const setSearch        = useLibraryFiltersStore((s) => s.setSearch);
   const setSelectedLang  = useLibraryFiltersStore((s) => s.setSelectedLang);
   const setSelectedLevel = useLibraryFiltersStore((s) => s.setSelectedLevel);
+  const setSelectedTopics = useLibraryFiltersStore((s) => s.setSelectedTopics);
+  const addSelectedTopic = useLibraryFiltersStore((s) => s.addSelectedTopic);
+
+  const isAdmin = useAuthStore((s) => s.user?.is_admin ?? false);
 
   const levelOptions = getSharedLevelOptions(selectedLang);
   const effectiveSelectedLevel =
@@ -351,27 +363,23 @@ export function LibraryPage() {
       ? selectedLevel
       : 'All';
 
-  // Ephemeral form state (local — cleared on unmount)
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [importError, setImportError] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+
+  const { data: tags = [] } = useActiveTopicTags();
+  // TagMultiSelect reports the option `id`; we use slugs as ids since the catalog
+  // filters by topic-tag slug.
+  const topicOptions = useMemo(
+    () => tags.map((t) => ({ id: t.slug, name: t.name })),
+    [tags],
+  );
 
   const { data: videos = [], isLoading, isError, refetch } = useVideos({
     language: selectedLang !== 'All' ? selectedLang : undefined,
     level: effectiveSelectedLevel !== 'All' ? effectiveSelectedLevel : undefined,
+    topic_tag: selectedTopics.length ? selectedTopics : undefined,
   });
 
-  const importMutation = useImportVideo();
   const deleteMutation = useDeleteVideo();
-
-  const handleImport = (url: string) => {
-    importMutation.mutate(
-      { youtube_url: url },
-      {
-        onSuccess: () => { setYoutubeUrl(''); setImportError(''); },
-        onError: (err) => setImportError(extractApiError(err, 'Failed to import video')),
-      },
-    );
-  };
 
   const filtered = videos.filter((v) => {
     const q = search.toLowerCase();
@@ -388,54 +396,26 @@ export function LibraryPage() {
               {videos.length} videos
             </CountBadge>
           )}
-          actions={<RefreshButton onClick={() => refetch()} />}
+          actions={(
+            <div className="flex items-center gap-2">
+              <RefreshButton onClick={() => refetch()} />
+              <Button size="sm" onClick={() => setImportOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Import video
+              </Button>
+            </div>
+          )}
           toolbar={(
             <div className="flex flex-col gap-3">
-              {/* Row 1: URL import */}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <AppInput
-                    icon={<Plus className="h-4 w-4" />}
-                    type="url"
-                    placeholder="Paste a YouTube URL to add a new video..."
-                    value={youtubeUrl}
-                    onChange={(e) => { setYoutubeUrl(e.target.value); setImportError(''); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && youtubeUrl.trim()) handleImport(youtubeUrl.trim());
-                    }}
-                    wrapperClassName="flex-1"
-                  />
-                  <Button
-                    disabled={!youtubeUrl.trim() || importMutation.isPending}
-                    onClick={() => handleImport(youtubeUrl.trim())}
-                    className="h-11 shrink-0 gap-1.5 px-5"
-                  >
-                    {importMutation.isPending ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" />Importing...</>
-                    ) : (
-                      'Add Video'
-                    )}
-                  </Button>
-                </div>
-                {importError && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5" />{importError}
-                  </p>
-                )}
-                {importMutation.isSuccess && (
-                  <p className="text-xs text-[color:var(--badge-success)]">Video imported successfully!</p>
-                )}
-              </div>
-
-              {/* Row 2: Search + filters */}
-              <div className="flex items-center gap-2 flex-wrap border-t border-border pt-3">
+              {/* Search + filters */}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
                 <AppInput
                   icon={<Search className="h-4 w-4" />}
                   type="text"
                   placeholder="Search videos..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  wrapperClassName="flex-1 min-w-48 max-w-xs"
+                  wrapperClassName="col-span-2 w-full sm:flex-1 sm:min-w-48 sm:max-w-xs"
                 />
 
                 <AppSelect
@@ -449,15 +429,26 @@ export function LibraryPage() {
                     );
                   }}
                   options={LIBRARY_LANGUAGE_OPTIONS}
-                  triggerClassName="min-w-36"
+                  triggerClassName="w-full sm:w-auto sm:min-w-36"
                 />
 
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <TagMultiSelect
+                  options={topicOptions}
+                  value={selectedTopics}
+                  onChange={setSelectedTopics}
+                  placeholder="All topics"
+                  emptyText="No topic tags"
+                  allowSelectAll
+                  className="w-full sm:w-auto sm:min-w-36 sm:max-w-72"
+                />
+
+                <div className="col-span-2 -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                   {[{ value: 'All', label: 'All' }, ...levelOptions].map((level) => (
                     <FilterChip
                       key={level.value}
                       selected={effectiveSelectedLevel === level.value}
                       onClick={() => setSelectedLevel(level.value)}
+                      className="shrink-0"
                     >
                       {level.label}
                     </FilterChip>
@@ -494,13 +485,21 @@ export function LibraryPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((video) => (
-              <VideoCard key={video.id} video={video} onDelete={(id) => deleteMutation.mutate(id)} />
+              <VideoCard
+                key={video.id}
+                video={video}
+                isAdmin={isAdmin}
+                onDelete={(id) => deleteMutation.mutate(id)}
+                onTagFilter={addSelectedTopic}
+              />
             ))}
           </div>
         )}
       </PageScrollArea>
+
+      <ImportVideoDialog open={importOpen} onOpenChange={setImportOpen} />
     </PageContainer>
   );
 }

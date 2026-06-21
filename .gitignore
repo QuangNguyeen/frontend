@@ -33,3 +33,14 @@ dist-ssr
 
 # Review snapshot for thesis defense (chia sẻ riêng, không commit)
 phan-bien-review/
+
+# Internal project docs (SRS, use-cases, infographics) — không commit
+docs/
+
+# Local tooling / AI assistant & generated state (không commit)
+.agent/
+.claude/
+.codegraph/
+.cursor/
+.gemini/
+.wrangler/
