@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dictationService } from '../services/dictationService';
 import { historyKeys } from '@/features/history/hooks/useHistory';
 import { dashboardKeys } from '@/features/dashboard/hooks/useDashboard';
+import { videoKeys } from '@/features/library/hooks/useVideos';
 import type {
   ClozeChunksResponse,
   ClozeResultResponse,
@@ -28,6 +29,7 @@ export function useDictationSession(
   videoId: string | undefined,
   practiceMode: PracticeMode | null,
 ) {
+  const queryClient = useQueryClient();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<DictationSessionResponse | null>(null);
 
@@ -41,10 +43,11 @@ export function useDictationSession(
       .then((s) => {
         setSessionId(s.id);
         setSessionData(s);
+        queryClient.invalidateQueries({ queryKey: videoKeys.recommendations() });
       })
       .catch(console.error)
       .finally(() => pendingSessionKeys.delete(key));
-  }, [videoId, practiceMode, sessionId]);
+  }, [videoId, practiceMode, sessionId, queryClient]);
 
   return { sessionId, sessionData };
 }
@@ -65,6 +68,7 @@ export function useSubmitAnswer(sessionId: string | null) {
       if (!result) return;
       queryClient.invalidateQueries({ queryKey: historyKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
+      queryClient.invalidateQueries({ queryKey: videoKeys.recommendations() });
     },
   });
 }
@@ -84,6 +88,7 @@ export function useCompleteSession(sessionId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: historyKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
+      queryClient.invalidateQueries({ queryKey: videoKeys.recommendations() });
     },
   });
 }
@@ -110,6 +115,7 @@ export function useSubmitCloze(sessionId: string | null) {
       if (!result) return;
       queryClient.invalidateQueries({ queryKey: historyKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
+      queryClient.invalidateQueries({ queryKey: videoKeys.recommendations() });
     },
   });
 }
@@ -136,6 +142,7 @@ export function useSubmitClozeAll(sessionId: string | null) {
       if (!result) return;
       queryClient.invalidateQueries({ queryKey: historyKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.full });
+      queryClient.invalidateQueries({ queryKey: videoKeys.recommendations() });
     },
   });
 }

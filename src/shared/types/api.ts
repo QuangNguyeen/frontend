@@ -58,7 +58,39 @@ export interface UserUpdateRequest {
   preferences?: Partial<UserPreferences>;
 }
 
+// ─── Topic Tags ───────────────────────────────────────────────────────────────
+
+/** Fixed, admin-managed catalog tag. Users may only select active ones. */
+export interface TopicTag {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface TopicTagCreateRequest {
+  slug: string;
+  name: string;
+  description?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface TopicTagUpdateRequest {
+  slug?: string;
+  name?: string;
+  description?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
 // ─── Videos ───────────────────────────────────────────────────────────────────
+
+export type PublishStatus = 'private' | 'pending_review' | 'published' | 'rejected';
+
+export type TranscriptionStatus = 'pending' | 'processing' | 'ready' | 'failed';
 
 export interface VideoResponse {
   id: string;
@@ -74,11 +106,100 @@ export interface VideoResponse {
   is_curated: boolean;
   is_active: boolean;
   is_auto_generated: boolean;
-  transcription_status: 'pending' | 'processing' | 'ready' | 'failed';
+  transcription_status: TranscriptionStatus;
   transcription_error: string | null;
   thumbnail_url: string;
   play_count: number;
   best_score: number | null;
+  // Publish / review workflow
+  publish_status?: PublishStatus;
+  published_at?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  // Tags: public (admin-approved) vs personal (current user's My Practice selection)
+  topic_tags?: TopicTag[];
+  my_topic_tags?: TopicTag[];
+  // Date the current user added this video to My Practice
+  my_practice_created_at?: string | null;
+}
+
+export type RecommendationStrategy = 'personalized' | 'cold_start';
+
+export type RecommendationReasonCode =
+  | 'same_channel'
+  | 'topic_match'
+  | 'level_match'
+  | 'level_progression'
+  | 'preferred_language'
+  | 'curated'
+  | 'popular'
+  | 'new_content';
+
+export interface VideoRecommendationItem {
+  video: VideoResponse;
+  reason_code: RecommendationReasonCode;
+  reason_text: string;
+}
+
+export interface VideoRecommendationsResponse {
+  strategy: RecommendationStrategy;
+  items: VideoRecommendationItem[];
+}
+
+/** A user who has also imported the same video. */
+export interface SimilarImporter {
+  id: string;
+  display_name: string;
+}
+
+/** Response wrapper returned by POST /videos/import. */
+export interface ImportVideoResponse {
+  video: VideoResponse;
+  already_exists: boolean;
+  already_in_my_practice: boolean;
+  message: string;
+  similar_importers_count: number;
+  similar_importers: SimilarImporter[];
+}
+
+/** Import result enriched with the HTTP status so the UI can branch on 201/200/206. */
+export interface ImportVideoResult extends ImportVideoResponse {
+  http_status: number;
+}
+
+// ─── My Practice ──────────────────────────────────────────────────────────────
+
+export interface MyPracticeListParams {
+  publish_status?: PublishStatus;
+  language?: string;
+  level?: string;
+  transcription_status?: TranscriptionStatus;
+  /** One or more personal topic-tag slugs to filter by. */
+  topic_tag?: string | string[];
+  page?: number;
+  page_size?: number;
+}
+
+export interface MyPracticeListResponse {
+  items: VideoResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
+
+export interface PublishRequestCreateRequest {
+  /** Optional message, max 2000 chars. */
+  message?: string;
+}
+
+export interface TranscriptFeedbackCreateRequest {
+  /** Set for segment-level feedback. */
+  transcript_id?: string;
+  /** Required correction explanation, 1–5000 chars. */
+  message: string;
+  /** Optional corrected text, max 5000 chars. */
+  suggested_text?: string;
 }
 
 // ─── Admin ──────────────────────────────────────────────────────────────────
@@ -161,6 +282,89 @@ export interface AdminPatchUserRequest {
   is_active?: boolean;
   email?: string;
   password?: string;
+}
+
+// ─── Admin: Publish Review Queue ──────────────────────────────────────────────
+
+export type PublishRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface PublishRequestResponse {
+  id: string;
+  video_id: string;
+  status: PublishRequestStatus;
+  message: string | null;
+  admin_note: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  requested_by: string | null;
+  requested_by_name: string | null;
+  requested_by_email: string | null;
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  video: VideoResponse | null;
+}
+
+export interface PublishRequestListParams {
+  status?: PublishRequestStatus;
+  page?: number;
+  page_size?: number;
+}
+
+export interface PublishRequestListResponse {
+  items: PublishRequestResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
+
+/** Body for approve/reject. topic_tag_ids selects the public catalog tags on approval. */
+export interface PublishReviewActionRequest {
+  admin_note?: string;
+  topic_tag_ids?: string[];
+}
+
+/** Body for PUT /admin/videos/{video_id}/topic-tags. */
+export interface VideoTopicTagsUpdateRequest {
+  topic_tag_ids: string[];
+}
+
+// ─── Admin: Transcript Feedback Queue ─────────────────────────────────────────
+
+export type TranscriptFeedbackStatus = 'pending' | 'reviewed' | 'resolved' | 'rejected';
+
+export interface AdminTranscriptFeedbackResponse {
+  id: string;
+  video_id: string;
+  transcript_id: string | null;
+  message: string;
+  suggested_text: string | null;
+  status: TranscriptFeedbackStatus;
+  admin_note: string | null;
+  created_at: string;
+  updated_at: string | null;
+  user_id: string | null;
+  user_name: string | null;
+  user_email: string | null;
+  video_title: string | null;
+  transcript_text: string | null;
+}
+
+export interface TranscriptFeedbackListParams {
+  status?: TranscriptFeedbackStatus;
+  page?: number;
+  page_size?: number;
+}
+
+export interface AdminTranscriptFeedbackListResponse {
+  items: AdminTranscriptFeedbackResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
+
+export interface TranscriptFeedbackPatchRequest {
+  status?: TranscriptFeedbackStatus;
+  admin_note?: string;
 }
 
 // ─── Admin Analytics ────────────────────────────────────────────────────────
@@ -286,12 +490,25 @@ export interface VideoEditStatusResponse {
 
 export interface ImportVideoRequest {
   youtube_url: string;
-  title?: string;
-  channel?: string;
+  title?: string | null;
+  channel?: string | null;
   language?: string;
-  level?: string;
+  level?: string | null;
   languages?: string[];
   max_segment_duration?: number;
+  /** IDs of active topic tags to attach as personal My Practice tags. */
+  topic_tag_ids?: string[];
+}
+
+/** Public catalog filters — GET /videos (published videos only). */
+export interface VideoCatalogParams {
+  language?: string;
+  level?: string;
+  curated?: boolean;
+  /** One or more public topic-tag slugs to filter by. */
+  topic_tag?: string | string[];
+  page?: number;
+  page_size?: number;
 }
 
 // ─── Dictation ────────────────────────────────────────────────────────────────

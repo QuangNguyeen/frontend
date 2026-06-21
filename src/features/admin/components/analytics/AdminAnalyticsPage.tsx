@@ -29,6 +29,7 @@ export function AdminAnalyticsPage() {
   return (
     <AdminPageShell
       title="Learning analytics"
+      description="Explore traffic, study time, engagement, learners, and content health."
       actions={
         <>
           <TimeRangeSelector value={timeRange} onChange={setTimeRange} compact />

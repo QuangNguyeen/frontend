@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   History,
   BookMarked,
+  ListVideo,
   Users,
   Headphones,
   Flame,
@@ -29,6 +30,7 @@ import { useTheme } from '@/app/ThemeProvider';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { authService } from '@/features/auth/services/authService';
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard';
+import { RecommendationRealtimeSync } from '@/features/recommendations/components/RecommendationRealtimeSync';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +50,8 @@ import {
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { to: '/library', icon: BookOpen, label: 'Practice' },
+  { to: '/library', icon: BookOpen, label: 'Library' },
+  { to: '/my-practice', icon: ListVideo, label: 'My Practice' },
   { to: '/history', icon: History, label: 'Progress' },
   { to: '/vocabulary', icon: BookMarked, label: 'Vocabulary' },
   { to: '/rooms', icon: Users, label: 'Rooms' },
@@ -319,8 +322,8 @@ function SidebarHeader() {
       aria-label="DictaLearn dashboard"
       className="sidebar-brand"
     >
-      <span className="sidebar-brand-logo">
-        <Headphones size={20} strokeWidth={2} absoluteStrokeWidth />
+      <span className="sidebar-brand-logo !bg-transparent">
+        <img src="/logo.png" alt="DictaLearn" className="h-full w-full object-contain" />
       </span>
       <span className="sidebar-brand-text">
         <span className="block text-[15px] font-extrabold tracking-tight text-foreground transition-colors duration-150">
@@ -378,6 +381,7 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      <RecommendationRealtimeSync />
       {/* ── Desktop sidebar ─────────────────────── */}
       <aside
         data-collapsed={collapsed ? 'true' : 'false'}

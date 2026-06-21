@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, Plus, LogIn, Users, Timer, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,6 @@ import { RoomResultPage } from './RoomResultPage';
 import { CreateRoomModal } from './CreateRoomModal';
 import { toast } from 'sonner';
 
-function exitFullscreen() {
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
-  }
-}
-
 export function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
@@ -29,25 +23,9 @@ export function RoomPage() {
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const gameContainerRef = useRef<HTMLDivElement>(null);
-  const prevPhaseRef = useRef('' as string);
-
   const ws = useRoomWebSocket(joined ? roomCode : undefined);
 
-  useEffect(() => {
-    const prev = prevPhaseRef.current;
-    prevPhaseRef.current = ws.phase;
-
-    if (ws.phase === 'playing' && prev !== 'playing') {
-      gameContainerRef.current?.requestFullscreen().catch(() => {});
-    }
-    if (ws.phase === 'result' && prev === 'playing') {
-      exitFullscreen();
-    }
-  }, [ws.phase]);
-
   const handleEndEarly = useCallback(() => {
-    exitFullscreen();
     navigate('/rooms');
   }, [navigate]);
 
@@ -179,7 +157,7 @@ export function RoomPage() {
 
   if (ws.phase === 'playing' && ws.gameStart) {
     return (
-      <div ref={gameContainerRef} className="h-full bg-background">
+      <div className="h-full bg-background">
         <RoomGamePage
           gameStart={ws.gameStart}
           lastSubmitResult={ws.lastSubmitResult}

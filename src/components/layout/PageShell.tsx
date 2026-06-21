@@ -11,7 +11,7 @@ export function PageContainer({
 }) {
   return (
     <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8', className)}>
+      <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden w-full px-4 sm:px-6 lg:px-8', className)}>
         {children}
       </div>
     </main>
@@ -40,7 +40,7 @@ export function PageScrollArea({
   className?: string;
 }) {
   return (
-    <div className={cn('min-h-0 flex-1 overflow-y-auto pb-6 space-y-5 scrollbar-stable', className)}>
+    <div className={cn('min-h-0 flex-1 overflow-y-auto pt-2 pb-6 space-y-5 scrollbar-stable', className)}>
       {children}
     </div>
   );

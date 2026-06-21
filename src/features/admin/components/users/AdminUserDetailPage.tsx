@@ -16,6 +16,16 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { extractApiError } from '@/shared/lib/httpClient';
 import { useAdminUser, usePatchAdminUser } from '../../hooks/useAdmin';
@@ -40,6 +50,7 @@ export function AdminUserDetailPage() {
   const patchUser = usePatchAdminUser();
   const [credentialEmail, setCredentialEmail] = useState('');
   const [credentialPassword, setCredentialPassword] = useState('');
+  const [pendingAccessAction, setPendingAccessAction] = useState<'role' | 'active' | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -124,6 +135,20 @@ export function AdminUserDetailPage() {
     );
   };
 
+  const confirmAccessAction = () => {
+    if (!pendingAccessAction) return;
+    patchUser.mutate(
+      {
+        userId: user.id,
+        data:
+          pendingAccessAction === 'role'
+            ? { is_admin: !user.is_admin }
+            : { is_active: !user.is_active },
+      },
+      { onSettled: () => setPendingAccessAction(null) },
+    );
+  };
+
   const statTiles = [
     {
       label: 'Total Attempts',
@@ -166,6 +191,7 @@ export function AdminUserDetailPage() {
   return (
     <AdminPageShell
       title={user.display_name}
+      description="Review account activity, access, and login credentials."
       actions={
         <Button asChild variant="outline" size="sm">
           <Link to="/admin/users">
@@ -218,12 +244,7 @@ export function AdminUserDetailPage() {
               variant="outline"
               size="sm"
               disabled={(isSelf && user.is_admin) || patchUser.isPending}
-              onClick={() =>
-                patchUser.mutate({
-                  userId: user.id,
-                  data: { is_admin: !user.is_admin },
-                })
-              }
+              onClick={() => setPendingAccessAction('role')}
             >
               {user.is_admin ? 'Revoke admin' : 'Make admin'}
             </Button>
@@ -231,12 +252,7 @@ export function AdminUserDetailPage() {
               variant="outline"
               size="sm"
               disabled={isSelf || patchUser.isPending}
-              onClick={() =>
-                patchUser.mutate({
-                  userId: user.id,
-                  data: { is_active: !user.is_active },
-                })
-              }
+              onClick={() => setPendingAccessAction('active')}
             >
               {user.is_active ? 'Deactivate' : 'Activate'}
             </Button>
@@ -340,6 +356,38 @@ export function AdminUserDetailPage() {
           </p>
         </div>
       </Card>
+      <AlertDialog
+        open={Boolean(pendingAccessAction)}
+        onOpenChange={(open) => !open && setPendingAccessAction(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAccessAction === 'role'
+                ? user.is_admin ? 'Revoke administrator access?' : 'Grant administrator access?'
+                : user.is_active ? 'Deactivate this account?' : 'Activate this account?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAccessAction === 'role'
+                ? `This changes the administration permissions available to ${user.display_name}.`
+                : `This changes whether ${user.display_name} can sign in and use the application.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={patchUser.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant={pendingAccessAction === 'active' && user.is_active ? 'destructive' : 'default'}
+              disabled={patchUser.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                confirmAccessAction();
+              }}
+            >
+              {patchUser.isPending ? <Loader2 className="size-4 animate-spin" /> : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </AdminPageShell>
   );

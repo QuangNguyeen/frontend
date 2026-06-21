@@ -52,11 +52,15 @@ export function VideoPickerDialog({
     importMutation.mutate(
       { youtube_url: url },
       {
-        onSuccess: (video) => {
+        onSuccess: (result) => {
           setYoutubeUrl('');
           setImportError('');
-          onSelect(video);
-          onOpenChange(false);
+          if (result.video) {
+            onSelect(result.video);
+            onOpenChange(false);
+          } else {
+            setImportError('Import did not return a video.');
+          }
         },
         onError: (err) => setImportError(extractApiError(err, 'Failed to import video')),
       },

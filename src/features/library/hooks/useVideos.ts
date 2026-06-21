@@ -1,12 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { videoService } from '../services/videoService';
-import type { ImportVideoRequest, TranscriptBulkUpdateRequest } from '@/shared/types/api';
+import type {
+  ImportVideoRequest,
+  TranscriptBulkUpdateRequest,
+  VideoCatalogParams,
+} from '@/shared/types/api';
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const videoKeys = {
   all: ['videos'] as const,
+  recommendations: () => [...videoKeys.all, 'recommendations'] as const,
+  recommendationList: (limit: number) =>
+    [...videoKeys.recommendations(), limit] as const,
   list: (params?: object) => [...videoKeys.all, 'list', params] as const,
   detail: (id: string) => [...videoKeys.all, 'detail', id] as const,
   transcripts: (id: string) => [...videoKeys.all, 'transcripts', id] as const,
@@ -18,10 +25,19 @@ export const videoKeys = {
 /**
  * Fetches the paginated/filtered video list.
  */
-export function useVideos(params?: { language?: string; level?: string; curated?: boolean }) {
+export function useVideos(params?: VideoCatalogParams) {
   return useQuery({
     queryKey: videoKeys.list(params),
     queryFn: () => videoService.list(params),
+  });
+}
+
+export function useVideoRecommendations(limit = 6) {
+  return useQuery({
+    queryKey: videoKeys.recommendationList(limit),
+    queryFn: () => videoService.recommendations(limit),
+    placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -78,7 +94,9 @@ export function useVideoTranscripts(videoId: string | undefined) {
 }
 
 /**
- * Mutation that imports a YouTube video and refreshes the video list on success.
+ * Mutation that imports a YouTube video into My Practice. Resolves to the import
+ * wrapper ({ video, already_exists, similar_importers, http_status, … }) and
+ * refreshes both the catalog and the My Practice lists on success.
  */
 export function useImportVideo() {
   const queryClient = useQueryClient();
@@ -86,6 +104,7 @@ export function useImportVideo() {
     mutationFn: (data: ImportVideoRequest) => videoService.import(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: videoKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['my-practice'] });
     },
   });
 }

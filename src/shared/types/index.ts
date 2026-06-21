@@ -54,21 +54,11 @@ export interface WordDiff {
     expected?: string;
 }
 
-export interface QuizQuestion {
-    id: string;
-    type: 'mcq' | 'true-false';
-    question: string;
-    audioUrl: string;
-    options: string[];
-    correctIndex: number;
-    explanation: string;
-}
-
 export interface HistoryEntry {
     id: string;
     videoId: string;
     videoTitle: string;
-    type: 'dictation' | 'quiz';
+    type: 'dictation';
     score: number;
     duration: number;
     completedAt: string;

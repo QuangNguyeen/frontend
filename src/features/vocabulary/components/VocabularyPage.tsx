@@ -65,7 +65,7 @@ function WordCard({
   const isDue = review === 'Due now' || review === 'Today';
 
   return (
-    <div className="group flex h-full min-h-[250px] flex-col overflow-hidden rounded-[14px] border border-[color:var(--color-border)] bg-[color:var(--color-surface,var(--color-card))] text-[color:var(--color-text-primary,var(--color-foreground))] shadow-soft transition-all duration-200 hover:border-primary/30 hover:shadow-soft-lg">
+    <div className="group flex h-full min-h-[250px] flex-col overflow-hidden rounded-[14px] border border-[color:var(--color-border)] bg-[color:var(--color-surface,var(--color-card))] text-[color:var(--color-text-primary,var(--color-foreground))] shadow-soft transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-soft-lg">
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">
@@ -342,8 +342,8 @@ export function VocabularyPage() {
           )}
           actions={<RefreshButton onClick={() => refetch()} />}
           toolbar={(
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-48 max-w-xs">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+              <div className="relative w-full sm:flex-1 sm:min-w-48 sm:max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
@@ -353,22 +353,25 @@ export function VocabularyPage() {
                   className="w-full h-11 pl-10 pr-4 py-2 text-sm bg-card border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/25 placeholder:text-muted-foreground"
                 />
               </div>
-              <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5 h-10">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="gap-1.5 h-10">
-                <Upload className="h-4 w-4" />
-                Import
-              </Button>
-              <Button
-                onClick={() => navigate('/vocabulary/review')}
-                className="gap-2.5 h-10"
-                size="sm"
-              >
-                <GraduationCap className="h-4 w-4" />
-                Flashcard Review
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleExport} className="flex-1 gap-1.5 h-10 sm:flex-none">
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="flex-1 gap-1.5 h-10 sm:flex-none">
+                  <Upload className="h-4 w-4" />
+                  Import
+                </Button>
+                <Button
+                  onClick={() => navigate('/vocabulary/review')}
+                  className="flex-1 gap-2 h-10 sm:flex-none whitespace-nowrap"
+                  size="sm"
+                >
+                  <GraduationCap className="h-4 w-4" />
+                  <span className="sm:hidden">Review</span>
+                  <span className="hidden sm:inline">Flashcard Review</span>
+                </Button>
+              </div>
             </div>
           )}
         />
@@ -419,7 +422,7 @@ export function VocabularyPage() {
             <p className="text-muted-foreground text-xs mt-0.5">Try a different search term</p>
           </div>
         ) : (
-          <div className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] items-stretch gap-4">
+          <div className="grid auto-rows-fr grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-stretch gap-4">
             {filtered.map((w) => (
               <WordCard
                 key={w.id}

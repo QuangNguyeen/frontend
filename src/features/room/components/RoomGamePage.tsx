@@ -276,7 +276,7 @@ export function RoomGamePage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-28 h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className="hidden sm:block w-28 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-primary/60 transition-all duration-500 rounded-full"
               style={{ width: `${(currentSentenceIndex / totalSentences) * 100}%` }}
@@ -307,9 +307,6 @@ export function RoomGamePage({
                 <AlertDialogAction
                   variant="destructive"
                   onClick={() => {
-                    if (document.fullscreenElement) {
-                      document.exitFullscreen().catch(() => {});
-                    }
                     setShowExitSummary(true);
                   }}
                 >

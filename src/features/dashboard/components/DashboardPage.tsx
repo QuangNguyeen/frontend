@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDashboard, useDashboardHistory } from '../hooks/useDashboard';
 import { useVideos } from '@/features/library/hooks/useVideos';
+import { RecommendedVideosSection } from './RecommendedVideosSection';
 import { CountBadge, PageContainer, PageStickyArea, PageScrollArea, PageHeader } from '@/components/layout/PageShell';
 import { cn } from '@/lib/utils';
 import type {
@@ -544,6 +545,8 @@ export function DashboardPage() {
                 <ReviewVocabularyCard onVocabulary={() => navigate('/vocabulary')} />
               </div>
             </section>
+
+            <RecommendedVideosSection />
 
             <ActivityChart days={last30} avgAccuracy={stats?.average_accuracy} />
 

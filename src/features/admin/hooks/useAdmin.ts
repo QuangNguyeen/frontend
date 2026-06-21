@@ -1,17 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AdminPatchUserRequest, AdminPatchVideoRequest, AdminTimeRange } from '@/shared/types/api';
+import type {
+  AdminPatchUserRequest,
+  AdminPatchVideoRequest,
+  AdminTimeRange,
+  TopicTagCreateRequest,
+  TopicTagUpdateRequest,
+  PublishRequestListParams,
+  PublishReviewActionRequest,
+  TranscriptFeedbackListParams,
+  TranscriptFeedbackPatchRequest,
+  VideoTopicTagsUpdateRequest,
+} from '@/shared/types/api';
 import {
   adminService,
   type AdminUserListParams,
   type AdminVideoListParams,
 } from '../services/adminService';
+import { topicTagKeys } from '@/features/library/hooks/useTopicTags';
+import { videoKeys } from '@/features/library/hooks/useVideos';
 
-/** Admin dashboards should feel live while the page is open. */
-const ADMIN_LIVE_QUERY_OPTIONS = {
-  staleTime: 0,
-  refetchInterval: 5_000,
-  refetchIntervalInBackground: true,
+const ADMIN_STATS_QUERY_OPTIONS = {
+  staleTime: 15_000,
+  refetchInterval: 30_000,
+  refetchIntervalInBackground: false,
   refetchOnWindowFocus: true,
+} as const;
+
+const ADMIN_ANALYTICS_QUERY_OPTIONS = {
+  staleTime: 60_000,
+  refetchOnWindowFocus: true,
+} as const;
+
+const ADMIN_LIST_QUERY_OPTIONS = {
+  staleTime: 20_000,
+  refetchOnWindowFocus: false,
+  placeholderData: <T>(previous: T | undefined) => previous,
 } as const;
 
 export const adminKeys = {
@@ -26,13 +49,18 @@ export const adminKeys = {
   videos: (params: AdminVideoListParams) => [...adminKeys.all, 'videos', params] as const,
   users: (params: AdminUserListParams) => [...adminKeys.all, 'users', params] as const,
   user: (userId: string) => [...adminKeys.all, 'user', userId] as const,
+  topicTags: () => [...adminKeys.all, 'topic-tags'] as const,
+  publishRequests: (params: PublishRequestListParams) =>
+    [...adminKeys.all, 'publish-requests', params] as const,
+  transcriptFeedback: (params: TranscriptFeedbackListParams) =>
+    [...adminKeys.all, 'transcript-feedback', params] as const,
 };
 
 export function useAdminStats() {
   return useQuery({
     queryKey: adminKeys.stats(),
     queryFn: adminService.getStats,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_STATS_QUERY_OPTIONS,
   });
 }
 
@@ -40,6 +68,7 @@ export function useAdminVideos(params: AdminVideoListParams) {
   return useQuery({
     queryKey: adminKeys.videos(params),
     queryFn: () => adminService.listVideos(params),
+    ...ADMIN_LIST_QUERY_OPTIONS,
   });
 }
 
@@ -93,6 +122,7 @@ export function useAdminUsers(params: AdminUserListParams) {
   return useQuery({
     queryKey: adminKeys.users(params),
     queryFn: () => adminService.listUsers(params),
+    ...ADMIN_LIST_QUERY_OPTIONS,
   });
 }
 
@@ -109,7 +139,7 @@ export function useAdminTraffic(timeRange: AdminTimeRange) {
     queryKey: adminKeys.traffic(timeRange),
     queryFn: () => adminService.getTraffic(timeRange),
     retry: false,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_ANALYTICS_QUERY_OPTIONS,
   });
 }
 
@@ -118,7 +148,7 @@ export function useAdminStudyHours(timeRange: AdminTimeRange) {
     queryKey: adminKeys.studyHours(timeRange),
     queryFn: () => adminService.getStudyHours(timeRange),
     retry: false,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_ANALYTICS_QUERY_OPTIONS,
   });
 }
 
@@ -127,7 +157,7 @@ export function useAdminTopLearners(timeRange: AdminTimeRange) {
     queryKey: adminKeys.topLearners(timeRange),
     queryFn: () => adminService.getTopLearners(timeRange),
     retry: false,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_ANALYTICS_QUERY_OPTIONS,
   });
 }
 
@@ -136,7 +166,7 @@ export function useAdminContentHealth() {
     queryKey: adminKeys.contentHealth(),
     queryFn: adminService.getContentHealth,
     retry: false,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_ANALYTICS_QUERY_OPTIONS,
   });
 }
 
@@ -145,7 +175,7 @@ export function useAdminEngagement(timeRange: AdminTimeRange) {
     queryKey: adminKeys.engagement(timeRange),
     queryFn: () => adminService.getEngagement(timeRange),
     retry: false,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_ANALYTICS_QUERY_OPTIONS,
   });
 }
 
@@ -154,7 +184,7 @@ export function useAdminRecentActivity() {
     queryKey: adminKeys.recentActivity(),
     queryFn: () => adminService.getRecentActivity(),
     retry: false,
-    ...ADMIN_LIVE_QUERY_OPTIONS,
+    ...ADMIN_ANALYTICS_QUERY_OPTIONS,
   });
 }
 
@@ -167,6 +197,117 @@ export function usePatchAdminUser() {
       queryClient.invalidateQueries({ queryKey: [...adminKeys.all, 'users'] });
       queryClient.invalidateQueries({ queryKey: adminKeys.user(user.id) });
       queryClient.invalidateQueries({ queryKey: adminKeys.stats() });
+    },
+  });
+}
+
+// ─── Topic tag management ────────────────────────────────────────────────────
+
+export function useAdminTopicTags(includeInactive = true) {
+  return useQuery({
+    queryKey: [...adminKeys.topicTags(), includeInactive],
+    queryFn: () => adminService.listTopicTags(includeInactive),
+    ...ADMIN_LIST_QUERY_OPTIONS,
+  });
+}
+
+function invalidateTopicTags(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: adminKeys.topicTags() });
+  queryClient.invalidateQueries({ queryKey: topicTagKeys.all });
+}
+
+export function useCreateTopicTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: TopicTagCreateRequest) => adminService.createTopicTag(data),
+    onSuccess: () => invalidateTopicTags(queryClient),
+  });
+}
+
+export function useUpdateTopicTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tagId, data }: { tagId: string; data: TopicTagUpdateRequest }) =>
+      adminService.updateTopicTag(tagId, data),
+    onSuccess: () => invalidateTopicTags(queryClient),
+  });
+}
+
+export function useDeactivateTopicTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tagId: string) => adminService.deactivateTopicTag(tagId),
+    onSuccess: () => invalidateTopicTags(queryClient),
+  });
+}
+
+// ─── Publish review queue ────────────────────────────────────────────────────
+
+export function useAdminPublishRequests(params: PublishRequestListParams, live = false) {
+  return useQuery({
+    queryKey: adminKeys.publishRequests(params),
+    queryFn: () => adminService.listPublishRequests(params),
+    ...ADMIN_LIST_QUERY_OPTIONS,
+    refetchInterval: live ? 30_000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+function invalidatePublishRequests(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: [...adminKeys.all, 'publish-requests'] });
+  queryClient.invalidateQueries({ queryKey: [...adminKeys.all, 'videos'] });
+  queryClient.invalidateQueries({ queryKey: videoKeys.all });
+}
+
+export function useApprovePublishRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId, data }: { requestId: string; data?: PublishReviewActionRequest }) =>
+      adminService.approvePublishRequest(requestId, data),
+    onSuccess: () => invalidatePublishRequests(queryClient),
+  });
+}
+
+export function useRejectPublishRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId, data }: { requestId: string; data?: PublishReviewActionRequest }) =>
+      adminService.rejectPublishRequest(requestId, data),
+    onSuccess: () => invalidatePublishRequests(queryClient),
+  });
+}
+
+export function useSetVideoTopicTags() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ videoId, data }: { videoId: string; data: VideoTopicTagsUpdateRequest }) =>
+      adminService.setVideoTopicTags(videoId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...adminKeys.all, 'videos'] });
+      queryClient.invalidateQueries({ queryKey: videoKeys.all });
+    },
+  });
+}
+
+// ─── Transcript feedback queue ───────────────────────────────────────────────
+
+export function useAdminTranscriptFeedback(params: TranscriptFeedbackListParams, live = false) {
+  return useQuery({
+    queryKey: adminKeys.transcriptFeedback(params),
+    queryFn: () => adminService.listTranscriptFeedback(params),
+    ...ADMIN_LIST_QUERY_OPTIONS,
+    refetchInterval: live ? 30_000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function usePatchTranscriptFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ feedbackId, data }: { feedbackId: string; data: TranscriptFeedbackPatchRequest }) =>
+      adminService.patchTranscriptFeedback(feedbackId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...adminKeys.all, 'transcript-feedback'] });
     },
   });
 }

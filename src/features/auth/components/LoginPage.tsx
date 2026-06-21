@@ -47,28 +47,28 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-layout min-h-screen px-4 py-8 flex items-center justify-center">
-      <div className="grid w-full max-w-[1040px] overflow-hidden rounded-[18px] border border-border bg-card shadow-soft-lg md:grid-cols-[1.1fr_0.9fr]">
+    <div className="auth-layout min-h-screen px-4 py-6 flex items-center justify-center">
+      <div className="grid w-full max-w-[820px] overflow-hidden rounded-[18px] border border-border bg-card shadow-soft-lg md:grid-cols-2">
         {/* ── Left: Branding panel ── */}
-        <div className="hidden md:flex flex-col justify-between border-r border-border bg-muted p-8 lg:p-10 min-h-[580px]">
+        <div className="hidden md:flex flex-col justify-between border-r border-border bg-muted p-6 lg:p-7">
           <div>
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary shadow-soft">
               <Headphones className="h-5 w-5 text-primary-foreground" />
             </div>
 
-            <h1 className="mt-5 text-[28px] font-extrabold tracking-[-0.03em] text-foreground leading-tight">
+            <h1 className="mt-4 text-[28px] font-extrabold tracking-[-0.03em] text-foreground leading-tight">
               DictaLearn
             </h1>
 
-            <p className="mt-3 max-w-[340px] text-[15px] leading-relaxed text-muted-foreground">
+            <p className="mt-2.5 max-w-[340px] text-[15px] leading-relaxed text-muted-foreground">
               Practice listening, dictation, word ordering, and vocabulary review from real video transcripts.
             </p>
 
-            <div className="mt-6 grid gap-2.5">
+            <div className="mt-5 grid gap-2">
               {features.map(({ icon: Icon, label }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 h-[48px] text-[14px] font-medium text-foreground shadow-soft"
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 h-[44px] text-[14px] font-medium text-foreground shadow-soft"
                 >
                   <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary-soft text-primary shrink-0">
                     <Icon className="h-3.5 w-3.5" />
@@ -79,16 +79,16 @@ export function LoginPage() {
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground/70 mt-8">
+          <p className="text-xs text-muted-foreground/70 mt-6">
             &copy; {new Date().getFullYear()} DictaLearn &middot; Listening lab
           </p>
         </div>
 
         {/* ── Right: Login form ── */}
-        <div className="flex flex-col items-center justify-center bg-card px-6 py-10 sm:px-10 lg:px-14">
-          <div className="w-full max-w-[360px]">
+        <div className="flex flex-col items-center justify-center bg-card px-6 py-6 sm:px-7">
+          <div className="w-full max-w-[340px]">
             {/* Mobile-only logo */}
-            <div className="flex flex-col items-center md:hidden mb-6">
+            <div className="flex flex-col items-center md:hidden mb-4">
               <div className="h-11 w-11 rounded-2xl bg-primary flex items-center justify-center shadow-soft">
                 <Headphones className="h-5 w-5 text-primary-foreground" />
               </div>
@@ -103,7 +103,7 @@ export function LoginPage() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-6">
+            <form onSubmit={handleSubmit} className="mt-4">
               {error && (
                 <div className="mb-4 bg-destructive/10 border border-destructive/30 text-destructive text-[13px] px-3.5 py-2.5 rounded-xl">
                   {error}
@@ -120,11 +120,11 @@ export function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="h-[46px]"
+                  className="h-[44px]"
                 />
               </div>
 
-              <div className="mt-4 space-y-1.5">
+              <div className="mt-3.5 space-y-1.5">
                 <Label htmlFor="password" className="text-[14px] font-semibold">Password</Label>
                 <div className="relative">
                   <Input
@@ -135,7 +135,7 @@ export function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
-                    className="h-[46px] pr-10"
+                    className="h-[44px] pr-10"
                   />
                   <button
                     type="button"
@@ -149,7 +149,7 @@ export function LoginPage() {
 
               <Button
                 type="submit"
-                className="mt-4 w-full h-[46px] text-[14px]"
+                className="mt-4 w-full h-[44px] text-[14px]"
                 disabled={loginMutation.isPending}
               >
                 {loginMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -158,7 +158,7 @@ export function LoginPage() {
             </form>
 
             {/* Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border" />
               </div>
@@ -180,7 +180,7 @@ export function LoginPage() {
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => setError('Google sign-in failed')}
-                  width="360"
+                  width="340"
                   text="signin_with"
                   shape="rectangular"
                   theme="outline"
@@ -189,7 +189,7 @@ export function LoginPage() {
             </div>
 
             {/* Footer */}
-            <p className="text-center text-[13px] text-muted-foreground mt-6">
+            <p className="text-center text-[13px] text-muted-foreground mt-4">
               Don&apos;t have an account?{' '}
               <Link to="/register" className="text-primary font-bold hover:underline">
                 Sign up

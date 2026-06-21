@@ -16,6 +16,19 @@ import type {
   AdminUserListResponse,
   AdminVideoListResponse,
   AdminVideoResponse,
+  TopicTag,
+  TopicTagCreateRequest,
+  TopicTagUpdateRequest,
+  PublishRequestListParams,
+  PublishRequestListResponse,
+  PublishReviewActionRequest,
+  PublishRequestResponse,
+  VideoResponse,
+  VideoTopicTagsUpdateRequest,
+  TranscriptFeedbackListParams,
+  AdminTranscriptFeedbackListResponse,
+  AdminTranscriptFeedbackResponse,
+  TranscriptFeedbackPatchRequest,
 } from '@/shared/types/api';
 
 export interface AdminListParams {
@@ -139,6 +152,102 @@ export const adminService = {
     const res = await httpClient.get<AdminRecentActivityResponse>('/api/v1/admin/analytics/recent-activity', {
       params: { limit: limit ?? 20 },
     });
+    return res.data;
+  },
+
+  // ─── Topic tag management ──────────────────────────────────────────────────
+
+  listTopicTags: async (includeInactive = true): Promise<TopicTag[]> => {
+    const res = await httpClient.get('/api/v1/admin/topic-tags', {
+      params: { include_inactive: includeInactive },
+    });
+    const data = res.data;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    return [];
+  },
+
+  createTopicTag: async (data: TopicTagCreateRequest): Promise<TopicTag> => {
+    const res = await httpClient.post<TopicTag>('/api/v1/admin/topic-tags', data);
+    return res.data;
+  },
+
+  updateTopicTag: async (tagId: string, data: TopicTagUpdateRequest): Promise<TopicTag> => {
+    const res = await httpClient.patch<TopicTag>(`/api/v1/admin/topic-tags/${tagId}`, data);
+    return res.data;
+  },
+
+  /** Soft-deactivates a tag (it stays visible in historical data). */
+  deactivateTopicTag: async (tagId: string): Promise<void> => {
+    await httpClient.delete(`/api/v1/admin/topic-tags/${tagId}`);
+  },
+
+  // ─── Publish review queue ──────────────────────────────────────────────────
+
+  listPublishRequests: async (
+    params: PublishRequestListParams = {},
+  ): Promise<PublishRequestListResponse> => {
+    const res = await httpClient.get<PublishRequestListResponse>(
+      '/api/v1/admin/videos/publish-requests',
+      { params: cleanParams(params) },
+    );
+    return res.data;
+  },
+
+  approvePublishRequest: async (
+    requestId: string,
+    data: PublishReviewActionRequest = {},
+  ): Promise<PublishRequestResponse> => {
+    const res = await httpClient.post<PublishRequestResponse>(
+      `/api/v1/admin/videos/publish-requests/${requestId}/approve`,
+      data,
+    );
+    return res.data;
+  },
+
+  rejectPublishRequest: async (
+    requestId: string,
+    data: PublishReviewActionRequest = {},
+  ): Promise<PublishRequestResponse> => {
+    const res = await httpClient.post<PublishRequestResponse>(
+      `/api/v1/admin/videos/publish-requests/${requestId}/reject`,
+      data,
+    );
+    return res.data;
+  },
+
+  /** Replaces the public topic-tag set of a video. */
+  setVideoTopicTags: async (
+    videoId: string,
+    data: VideoTopicTagsUpdateRequest,
+  ): Promise<VideoResponse> => {
+    const res = await httpClient.put<VideoResponse>(
+      `/api/v1/admin/videos/${videoId}/topic-tags`,
+      data,
+    );
+    return res.data;
+  },
+
+  // ─── Transcript feedback queue ─────────────────────────────────────────────
+
+  listTranscriptFeedback: async (
+    params: TranscriptFeedbackListParams = {},
+  ): Promise<AdminTranscriptFeedbackListResponse> => {
+    const res = await httpClient.get<AdminTranscriptFeedbackListResponse>(
+      '/api/v1/admin/transcript-feedback',
+      { params: cleanParams(params) },
+    );
+    return res.data;
+  },
+
+  patchTranscriptFeedback: async (
+    feedbackId: string,
+    data: TranscriptFeedbackPatchRequest,
+  ): Promise<AdminTranscriptFeedbackResponse> => {
+    const res = await httpClient.patch<AdminTranscriptFeedbackResponse>(
+      `/api/v1/admin/transcript-feedback/${feedbackId}`,
+      data,
+    );
     return res.data;
   },
 };

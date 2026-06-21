@@ -1,6 +1,10 @@
 # Environment variables
 .env
 .env.*
+!.env.example
+# Production build vars (VITE_* are public — baked into the client bundle —
+# so they are safe to commit; Cloudflare's build reads this file).
+!.env.production
 
 # Logs
 logs
@@ -27,26 +31,16 @@ dist-ssr
 *.sln
 *.sw?
 
-# AI / Agent local files
+# Review snapshot for thesis defense (chia sẻ riêng, không commit)
+phan-bien-review/
+
+# Internal project docs (SRS, use-cases, infographics) — không commit
+docs/
+
+# Local tooling / AI assistant & generated state (không commit)
 .agent/
 .claude/
 .codegraph/
 .cursor/
 .gemini/
-.mcp.json
-
-# Local notes
-task.md
-
-# Demo/export files
-public/compact_unified_header_preview.html
-public/dictalearn_7concepts_infographic.html
-public/dictalearn_architecture.md
-public/dictalearn_system_infographic.html
-public/dictalearn_system_infographic_updated.html
-public/img_*.png
-
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
+.wrangler/
