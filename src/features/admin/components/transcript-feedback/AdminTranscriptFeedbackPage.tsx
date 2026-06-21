@@ -261,8 +261,8 @@ export function AdminTranscriptFeedbackPage() {
         </div>
       }
     >
-      <div className="grid min-h-[520px] gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <Card className="flex min-h-[480px] flex-col overflow-hidden">
+      <div className="grid min-h-[420px] gap-3 sm:min-h-[520px] lg:grid-cols-[minmax(0,1fr)_380px]">
+      <Card className="flex min-h-[360px] flex-col overflow-hidden sm:min-h-[480px]">
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 text-sm font-bold">
           <span>{data?.total ?? 0} item{data?.total === 1 ? '' : 's'}</span>
           {isFetching && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
@@ -334,7 +334,7 @@ export function AdminTranscriptFeedbackPage() {
       </div>
 
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-5">
+        <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-4 sm:p-5">
           <SheetHeader>
             <SheetTitle>Transcript feedback</SheetTitle>
           </SheetHeader>

@@ -28,7 +28,7 @@ export function AdminPagination({
         {from}-{to} of {total}
         {isFetching && <span className="ml-2">Updating...</span>}
       </p>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
         <Button
           variant="outline"
           size="sm"
@@ -36,7 +36,7 @@ export function AdminPagination({
           onClick={() => onPageChange(page - 1)}
         >
           <ChevronLeft className="size-4" />
-          Previous
+          <span className="hidden sm:inline">Previous</span>
         </Button>
         <span className="min-w-20 text-center text-xs font-bold text-muted-foreground">
           {page} / {safeTotalPages}
@@ -47,7 +47,7 @@ export function AdminPagination({
           disabled={page >= safeTotalPages}
           onClick={() => onPageChange(page + 1)}
         >
-          Next
+          <span className="hidden sm:inline">Next</span>
           <ChevronRight className="size-4" />
         </Button>
       </div>

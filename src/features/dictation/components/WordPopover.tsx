@@ -97,8 +97,10 @@ export function WordPopover({
         zIndex: 50,
         opacity: positioned ? 1 : 0,
         transition: 'opacity 150ms ease',
+        width: 'min(300px, calc(100vw - 1.5rem))',
+        maxHeight: 'min(380px, calc(100dvh - 1.5rem))',
       }}
-      className="w-[300px] max-h-[380px] overflow-y-auto rounded-xl border border-border bg-card text-card-foreground shadow-lg ring-1 ring-foreground/5 animate-in fade-in-0 slide-in-from-top-1 duration-150"
+      className="overflow-y-auto rounded-xl border border-border bg-card text-card-foreground shadow-lg ring-1 ring-foreground/5 animate-in fade-in-0 slide-in-from-top-1 duration-150"
     >
       <DictionaryCard
         word={word}

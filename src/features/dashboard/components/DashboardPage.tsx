@@ -173,13 +173,13 @@ function GoalSummaryCard({
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-muted/25 p-3">
+        <div className="min-w-0 rounded-xl border border-border bg-muted/25 p-3">
           <div className="flex items-center justify-between gap-3">
-            <MicroLabel className="flex items-center gap-1.5">
+            <MicroLabel className="flex min-w-0 items-center gap-1.5 truncate">
               <Target className="h-3.5 w-3.5 text-primary" />
               Today&apos;s goal
             </MicroLabel>
-            <span className="text-sm font-bold tabular-nums">
+            <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums">
               {todaySessions}/{TODAY_GOAL_SENTENCES}
             </span>
           </div>
@@ -214,7 +214,7 @@ function ContinueLearningCard({
     <DashboardCard className="overflow-hidden">
       <button
         onClick={onContinue}
-        className="group grid w-full gap-4 bg-linear-to-br from-primary to-accent-blue p-5 text-left text-white transition-all duration-150 hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[154px_minmax(0,1fr)_auto] sm:p-6"
+        className="group grid w-full min-w-0 gap-4 bg-linear-to-br from-primary to-accent-blue p-4 text-left text-white transition-all duration-150 hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[154px_minmax(0,1fr)_auto] sm:p-6"
       >
         {continueVideo?.thumbnail_url ? (
           <img
@@ -233,7 +233,7 @@ function ContinueLearningCard({
 
         <div className="min-w-0 self-center">
           <MicroLabel className="text-white/80">Continue learning</MicroLabel>
-          <h2 className="mt-2 truncate text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
+          <h2 className="mt-2 overflow-hidden text-xl font-extrabold leading-tight tracking-[-0.03em] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] sm:text-3xl">
             {ctaTitle}
           </h2>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -275,18 +275,23 @@ function ReviewVocabularyCard({ onVocabulary }: { onVocabulary: () => void }) {
   return (
     <button
       onClick={onVocabulary}
-      className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-soft transition-all duration-150 hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group relative flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-2xl border border-primary/30 bg-primary-soft p-3.5 text-left shadow-soft ring-1 ring-primary/10 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-primary/35 dark:bg-primary-soft/70"
+      aria-label="Review vocabulary"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary" aria-hidden="true" />
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
         <BookMarked className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold">Review vocabulary</span>
-        <span className="block truncate text-xs text-muted-foreground">
+        <span className="block text-sm font-extrabold text-foreground">Review vocabulary</span>
+        <span className="block truncate text-xs font-medium text-muted-foreground">
           Practice saved words before your next session
         </span>
       </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary" />
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-sm transition-transform duration-150 group-hover:translate-x-0.5 sm:w-auto sm:gap-1.5 sm:px-3">
+        <span className="sr-only sm:not-sr-only">Review now</span>
+        <ArrowRight className="h-3.5 w-3.5" />
+      </span>
     </button>
   );
 }
@@ -303,17 +308,19 @@ function StatCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <DashboardCard className="p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/25">
-      <div className="flex items-start justify-between gap-3">
-        <MicroLabel>{label}</MicroLabel>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+    <DashboardCard className="min-w-0 p-2.5 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/25 sm:p-4">
+      <div className="flex items-start justify-between gap-1 sm:gap-3">
+        <MicroLabel className="truncate text-[9px] leading-none tracking-[0.08em] sm:text-[11px] sm:tracking-[0.12em]">
+          {label}
+        </MicroLabel>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-8 sm:w-8">
+          <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </span>
       </div>
-      <p className="mt-3 text-2xl font-extrabold leading-none tracking-[-0.03em] tabular-nums">
+      <p className="mt-3 text-xl font-extrabold leading-none tracking-[-0.03em] tabular-nums sm:text-2xl">
         {value}
       </p>
-      {sub && <p className="mt-2 text-xs text-muted-foreground">{sub}</p>}
+      {sub && <p className="mt-1 truncate text-[10px] leading-tight text-muted-foreground sm:mt-2 sm:text-xs">{sub}</p>}
     </DashboardCard>
   );
 }
@@ -471,9 +478,9 @@ function DashboardSkeleton() {
         </div>
       </div>
       <div className="h-56 rounded-2xl border border-border bg-card shadow-soft" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-4 gap-2 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-32 rounded-2xl border border-border bg-card shadow-soft" />
+          <div key={i} className="h-24 rounded-2xl border border-border bg-card shadow-soft sm:h-32" />
         ))}
       </div>
     </div>
@@ -551,7 +558,7 @@ export function DashboardPage() {
             <ActivityChart days={last30} avgAccuracy={stats?.average_accuracy} />
 
             {stats && (
-              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <section className="grid grid-cols-4 gap-2 sm:gap-4">
                 <StatCard
                   icon={ListChecks}
                   label="Sessions"

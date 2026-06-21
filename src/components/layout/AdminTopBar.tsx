@@ -13,12 +13,12 @@ export function AdminTopBar({ onOpenSidebar }: AdminTopBarProps) {
 
   return (
     <header className="shrink-0 border-b border-border bg-card/95 backdrop-blur">
-      <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex h-12 items-center justify-between gap-2 px-3 sm:h-14 sm:px-5">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onOpenSidebar}
-            className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+            className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
             aria-label="Open admin navigation"
           >
             <Menu className="size-4" />
@@ -27,7 +27,7 @@ export function AdminTopBar({ onOpenSidebar }: AdminTopBarProps) {
             <p className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               {page.breadcrumb}
             </p>
-            <p className="hidden truncate text-xs text-muted-foreground sm:block">
+            <p className="hidden truncate text-xs text-muted-foreground md:block">
               {page.description}
             </p>
           </div>

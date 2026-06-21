@@ -41,17 +41,17 @@ export function RoomLobby({
   };
 
   return (
-    <div className="app-page flex min-h-full items-center justify-center p-4">
-      <div className="grid w-full max-w-4xl gap-4 md:grid-cols-[1fr_360px]">
+    <div className="app-page flex min-h-full items-start justify-center p-4 sm:items-center">
+      <div className="grid w-full max-w-4xl gap-4 md:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
       <div className="app-card p-5 text-center md:text-left">
         <p className="text-xs font-medium tracking-wider uppercase text-muted-foreground mb-2">
           Room Code
         </p>
         <button
           onClick={handleCopy}
-          className="inline-flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-5 py-3 shadow-soft transition-colors hover:bg-muted/70"
+          className="inline-flex max-w-full items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 shadow-soft transition-colors hover:bg-muted/70 sm:px-5"
         >
-          <span className="text-2xl font-mono font-bold tracking-[0.28em]">{roomCode}</span>
+          <span className="min-w-0 break-all font-mono text-xl font-bold tracking-[0.18em] sm:text-2xl sm:tracking-[0.28em]">{roomCode}</span>
           {copied
             ? <Check className="h-5 w-5 text-green-500" />
             : <Copy className="h-5 w-5 text-muted-foreground" />}
@@ -106,10 +106,11 @@ export function RoomLobby({
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2 md:col-span-2">
+      <div className="flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:items-center md:col-span-2">
         <Button
           variant={currentMember?.is_ready ? 'outline' : 'default'}
           onClick={onReady}
+          className="w-full sm:w-auto"
         >
           {currentMember?.is_ready ? 'Cancel Ready' : 'Ready Up'}
         </Button>
@@ -118,7 +119,7 @@ export function RoomLobby({
           <Button
             onClick={onStartGame}
             disabled={!allReady}
-            className="gap-1.5"
+            className="w-full gap-1.5 sm:w-auto"
           >
             <Play className="h-4 w-4 fill-current" />
             Start Game
@@ -127,10 +128,10 @@ export function RoomLobby({
       </div>
 
       {isHost && !allReady && members.length >= 2 && (
-        <p className="text-xs text-muted-foreground md:col-span-2 text-right">All players must be ready to start</p>
+        <p className="text-center text-xs text-muted-foreground md:col-span-2 sm:text-right">All players must be ready to start</p>
       )}
       {members.length < 2 && (
-        <p className="text-xs text-muted-foreground md:col-span-2 text-right">Need at least 2 players to start</p>
+        <p className="text-center text-xs text-muted-foreground md:col-span-2 sm:text-right">Need at least 2 players to start</p>
       )}
       </div>
     </div>

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Eye, EyeOff, Loader2, AudioLines, BookMarked, Trophy } from 'lucide-react';
-import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import { type CredentialResponse } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLogin, useGoogleLogin } from '../hooks/useAuth';
 import { extractApiError } from '@/shared/lib/httpClient';
+import { ResponsiveGoogleLogin } from './ResponsiveGoogleLogin';
 
 const features = [
   { icon: AudioLines, label: 'Sentence and cloze practice' },
@@ -47,8 +48,8 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-layout min-h-screen px-4 py-6 flex items-center justify-center">
-      <div className="grid w-full max-w-[820px] overflow-hidden rounded-[18px] border border-border bg-card shadow-soft-lg md:grid-cols-2">
+    <div className="auth-layout flex min-h-[100dvh] items-center justify-center px-4 pb-[calc(1rem+var(--safe-bottom))] pt-[calc(1rem+var(--safe-top))] sm:py-6">
+      <div className="grid w-full max-w-md overflow-hidden rounded-[18px] border border-border bg-card shadow-soft-lg md:max-w-[820px] md:grid-cols-2">
         {/* ── Left: Branding panel ── */}
         <div className="hidden md:flex flex-col justify-between border-r border-border bg-muted p-6 lg:p-7">
           <div>
@@ -56,7 +57,7 @@ export function LoginPage() {
               <Headphones className="h-5 w-5 text-primary-foreground" />
             </div>
 
-            <h1 className="mt-4 text-[28px] font-extrabold tracking-[-0.03em] text-foreground leading-tight">
+            <h1 className="mt-4 text-[28px] font-extrabold tracking-normal text-foreground leading-tight">
               DictaLearn
             </h1>
 
@@ -85,17 +86,17 @@ export function LoginPage() {
         </div>
 
         {/* ── Right: Login form ── */}
-        <div className="flex flex-col items-center justify-center bg-card px-6 py-6 sm:px-7">
+        <div className="flex min-w-0 flex-col items-center justify-center bg-card px-5 py-5 sm:px-7 sm:py-6">
           <div className="w-full max-w-[340px]">
             {/* Mobile-only logo */}
-            <div className="flex flex-col items-center md:hidden mb-4">
+            <div className="mb-3 flex flex-col items-center md:hidden">
               <div className="h-11 w-11 rounded-2xl bg-primary flex items-center justify-center shadow-soft">
                 <Headphones className="h-5 w-5 text-primary-foreground" />
               </div>
             </div>
 
             <div className="md:text-left text-center">
-              <h1 className="text-[28px] font-extrabold tracking-[-0.03em] text-foreground leading-tight">
+              <h1 className="text-2xl font-extrabold tracking-normal text-foreground leading-tight sm:text-[28px]">
                 Welcome back
               </h1>
               <p className="mt-2 text-[14px] text-muted-foreground">
@@ -170,17 +171,17 @@ export function LoginPage() {
             </div>
 
             {/* Google login */}
-            <div className="flex justify-center">
+            <div className="flex w-full justify-center">
               {googleLoginMutation.isPending ? (
                 <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Signing in with Google...
                 </div>
               ) : (
-                <GoogleLogin
+                <ResponsiveGoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => setError('Google sign-in failed')}
-                  width="340"
+                  maxWidth={340}
                   text="signin_with"
                   shape="rectangular"
                   theme="outline"

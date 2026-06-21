@@ -640,7 +640,7 @@ export function FullClozeView({
   }
 
   return (
-    <div className="flex h-full min-h-0 max-h-[calc(100vh-104px)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+    <div className="flex h-full min-h-0 max-h-[calc(100dvh-104px)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
       {/* Score banner (after submit) */}
       {summary && (
         <div className="m-4 rounded-xl border border-border bg-background p-4 text-center shadow-soft dash-enter" style={{ animationDelay: '0ms' }}>

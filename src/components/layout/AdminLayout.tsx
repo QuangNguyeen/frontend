@@ -14,7 +14,7 @@ export function AdminLayout() {
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-72 max-w-[86vw] gap-0 p-0">
+        <SheetContent side="left" className="w-[calc(100vw-1rem)] max-w-72 gap-0 p-0">
           <SheetHeader className="sr-only">
             <SheetTitle>Admin navigation</SheetTitle>
           </SheetHeader>
@@ -25,7 +25,7 @@ export function AdminLayout() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <AdminTopBar onOpenSidebar={() => setMobileOpen(true)} />
         <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="flex h-full min-h-0 w-full flex-col px-4 sm:px-5 xl:px-6">
+          <div className="flex h-full min-h-0 w-full flex-col px-3 sm:px-4 xl:px-6">
             <Outlet />
           </div>
         </div>

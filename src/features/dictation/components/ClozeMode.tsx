@@ -295,7 +295,7 @@ export function ClozeMode({
       <div className="flex-1 min-h-0 overflow-hidden p-3 lg:p-5">
         <div className="grid h-full min-h-0 w-full grid-rows-[auto_minmax(0,1fr)] gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:grid-rows-none xl:gap-6">
           {/* Left practice sidebar */}
-          <aside className="min-h-0 overflow-y-auto rounded-2xl border border-border bg-card shadow-soft lg:sticky lg:top-5 lg:max-h-[calc(100vh-96px)]">
+          <aside className="min-h-0 overflow-y-auto rounded-2xl border border-border bg-card shadow-soft lg:sticky lg:top-5 lg:max-h-[calc(100dvh-96px)]">
           <div className="p-3 lg:p-4">
             {/* Player + mobile inline controls */}
             <div className="flex items-center gap-3 lg:block">

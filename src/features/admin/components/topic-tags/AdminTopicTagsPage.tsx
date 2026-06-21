@@ -317,11 +317,12 @@ export function AdminTopicTagsPage() {
             onValueChange={setStatus}
             options={STATUS_FILTER_OPTIONS}
             size="sm"
+            triggerClassName="w-full"
           />
         </div>
       }
     >
-      <Card className="flex min-h-[420px] flex-col overflow-hidden">
+      <Card className="flex min-h-[340px] flex-col overflow-hidden sm:min-h-[420px]">
         <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2.5 text-sm font-bold">
           <Tags className="size-4 text-primary" />
           {sorted.length} of {tags.length} tag{tags.length === 1 ? '' : 's'}
@@ -347,7 +348,7 @@ export function AdminTopicTagsPage() {
           />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto scrollbar-stable">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[560px] text-left text-sm sm:min-w-[640px]">
               <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 text-xs uppercase tracking-[0.12em] text-muted-foreground backdrop-blur">
                 <tr>
                   <th className="px-4 py-2.5 font-bold">Name</th>

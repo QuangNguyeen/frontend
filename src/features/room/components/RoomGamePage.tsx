@@ -499,7 +499,7 @@ export function RoomGamePage({
               Leaderboard
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="h-[60vh] p-0 rounded-t-xl overflow-y-auto">
+          <SheetContent side="bottom" className="h-[60dvh] p-0 rounded-t-xl overflow-y-auto">
             <LiveLeaderboard
               rankings={rankings}
               members={members}

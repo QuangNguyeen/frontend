@@ -123,7 +123,7 @@ export function AdminUsersPage() {
         </Button>
       }
       toolbar={
-        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_140px_140px]">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_140px_140px]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -141,18 +141,20 @@ export function AdminUsersPage() {
             onValueChange={(val) => { setRole(val); setPage(1); }}
             options={ROLE_OPTIONS}
             size="sm"
+            triggerClassName="w-full"
           />
           <AppSelect
             value={active}
             onValueChange={(val) => { setActive(val); setPage(1); }}
             options={ACCOUNT_OPTIONS}
             size="sm"
+            triggerClassName="w-full"
           />
         </div>
       }
     >
       <>
-        <Card className="flex min-h-[520px] flex-col overflow-hidden">
+        <Card className="flex min-h-[360px] flex-col overflow-hidden sm:min-h-[520px]">
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5">
             <div className="flex items-center gap-2 text-sm font-bold">
               <Users className="size-4 text-primary" />
@@ -166,7 +168,7 @@ export function AdminUsersPage() {
           ) : (
             <>
               <div className="min-h-0 flex-1 overflow-auto scrollbar-stable">
-                <table className="w-full min-w-[760px] text-left text-sm">
+                <table className="w-full min-w-[640px] text-left text-sm sm:min-w-[760px]">
                   <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 text-xs uppercase tracking-[0.12em] text-muted-foreground backdrop-blur">
                     <tr>
                       <th className="px-4 py-2.5 font-bold">Name + Email</th>
@@ -285,7 +287,7 @@ export function AdminUsersPage() {
         </Card>
 
         <Sheet open={Boolean(selectedUserId)} onOpenChange={(open) => !open && setSelectedUserId(null)}>
-          <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-5 sm:w-[420px]">
+          <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-4 sm:w-[420px] sm:p-5">
             <SheetHeader>
               <SheetTitle>User overview</SheetTitle>
             </SheetHeader>

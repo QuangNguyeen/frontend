@@ -121,7 +121,7 @@ export function AdminDashboard() {
       }
     >
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {kpis.map((kpi) => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
@@ -132,7 +132,7 @@ export function AdminDashboard() {
           <h2 id="attention-heading" className="text-sm font-bold">Attention required</h2>
           <span className="text-xs text-muted-foreground">Operational queues</span>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 md:gap-3">
           {[
             {
               label: 'Failed transcriptions',
@@ -159,14 +159,14 @@ export function AdminDashboard() {
             <Link
               key={label}
               to={href}
-              className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/30 hover:bg-primary-soft/40"
+              className="flex min-w-0 flex-col gap-2 rounded-lg border border-border bg-card p-2 transition-colors hover:border-primary/30 hover:bg-primary-soft/40 sm:flex-row sm:items-center sm:gap-3 sm:p-3"
             >
-              <span className={`inline-flex size-9 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-                <Icon className="size-4" />
+              <span className={`inline-flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9 ${tone}`}>
+                <Icon className="size-3.5 sm:size-4" />
               </span>
               <span className="min-w-0">
-                <span className="block text-2xl font-extrabold tabular-nums">{count}</span>
-                <span className="block truncate text-xs font-semibold text-muted-foreground">{label}</span>
+                <span className="block text-xl font-extrabold leading-none tabular-nums sm:text-2xl">{count}</span>
+                <span className="mt-1 block truncate text-[10px] font-semibold leading-tight text-muted-foreground sm:text-xs">{label}</span>
               </span>
             </Link>
           ))}

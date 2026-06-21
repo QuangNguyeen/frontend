@@ -314,16 +314,16 @@ function SummaryStatCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+    <div className="relative min-w-0 rounded-2xl border border-border bg-card px-3 py-3 shadow-soft sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-1.5">
+        <p className="min-w-0 truncate pr-1 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground sm:text-[11px] sm:tracking-[0.14em]">
           {label}
         </p>
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary sm:h-9 sm:w-9">
+          <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </span>
       </div>
-      <p className="mt-3 text-3xl font-extrabold leading-none tracking-[-0.03em] text-foreground tabular-nums">
+      <p className="mt-3 truncate text-xl font-extrabold leading-none tracking-normal text-foreground tabular-nums sm:text-3xl">
         {value}
       </p>
     </div>
@@ -340,7 +340,7 @@ function ProgressSummaryStats({
   avgScore: number;
 }) {
   return (
-    <section className="grid gap-4 sm:grid-cols-3">
+    <section className="grid grid-cols-3 gap-2 sm:gap-4">
       <SummaryStatCard label="Sessions" value={sessions} icon={ListChecks} />
       <SummaryStatCard label="Completed" value={completed} icon={CheckCircle2} />
       <SummaryStatCard label="Avg score" value={`${avgScore}%`} icon={Percent} />
@@ -366,7 +366,7 @@ function ProgressTabs({
 
   return (
     <div className="overflow-x-auto">
-      <div className="inline-flex rounded-xl border border-border bg-primary-soft p-1">
+      <div className="inline-flex rounded-xl border border-primary/20 bg-primary-soft/80 p-1 shadow-soft dark:border-primary/25 dark:bg-primary-soft/45">
         {TABS.map((tab) => {
           const active = activeTab === tab.key;
           return (
@@ -376,15 +376,17 @@ function ProgressTabs({
               className={cn(
                 'flex h-10 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-bold transition-all',
                 active
-                  ? 'bg-card text-primary-hover shadow-soft'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? 'bg-card text-primary-hover shadow-soft ring-1 ring-border/70 dark:bg-primary dark:text-primary-foreground dark:ring-primary/30'
+                  : 'text-muted-foreground hover:bg-card/60 hover:text-foreground dark:text-muted-foreground dark:hover:bg-card/35 dark:hover:text-foreground',
               )}
             >
               {tab.label}
               <span
                 className={cn(
                   'rounded-md px-2 py-0.5 text-xs tabular-nums',
-                  active ? 'bg-primary-soft text-primary-hover' : 'bg-white/55 text-muted-foreground',
+                  active
+                    ? 'bg-primary-soft text-primary-hover dark:bg-primary-foreground/18 dark:text-primary-foreground'
+                    : 'bg-card/70 text-muted-foreground dark:bg-card/45 dark:text-muted-foreground',
                 )}
               >
                 {counts[tab.key]}

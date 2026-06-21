@@ -406,7 +406,7 @@ export function LibraryPage() {
             </div>
           )}
           toolbar={(
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {/* Search + filters */}
               <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
                 <AppInput

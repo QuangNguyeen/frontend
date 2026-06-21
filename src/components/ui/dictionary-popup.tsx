@@ -78,8 +78,14 @@ function PositionedPopover({
   return createPortal(
     <div
       ref={popoverRef}
-      style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 50 }}
-      className="w-[300px] rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5 animate-in fade-in-0 duration-150 slide-in-from-top-2"
+      style={{
+        position: 'absolute',
+        top: pos.top,
+        left: pos.left,
+        zIndex: 50,
+        width: 'min(300px, calc(100vw - 1.5rem))',
+      }}
+      className="rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5 animate-in fade-in-0 duration-150 slide-in-from-top-2"
     >
       {children}
     </div>,

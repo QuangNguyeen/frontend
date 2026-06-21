@@ -529,7 +529,7 @@ export function AdminVideosPage() {
         </Button>
       }
       toolbar={
-        <div className="grid gap-2 xl:grid-cols-[minmax(240px,1fr)_145px_145px_minmax(220px,auto)]">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_145px_145px_minmax(220px,auto)]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -544,28 +544,30 @@ export function AdminVideosPage() {
             onValueChange={(val) => updateFilter('status', val)}
             options={STATUS_OPTIONS}
             size="sm"
+            triggerClassName="w-full"
           />
           <AppSelect
             value={filters.language}
             onValueChange={handleLanguageChange}
             options={LANGUAGE_FILTER_OPTIONS}
             size="sm"
+            triggerClassName="w-full"
           />
-          <div className="flex gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
             <AppSelect
               value={filters.level}
               onValueChange={(val) => updateFilter('level', val)}
               options={levelFilterOptions}
               disabled={!filters.language}
               size="sm"
-              triggerClassName="min-w-28"
+              triggerClassName="w-full min-w-0 xl:min-w-28"
             />
             <AppSelect
               value={filters.curated}
               onValueChange={(val) => updateFilter('curated', val)}
               options={CURATED_OPTIONS}
               size="sm"
-              triggerClassName="min-w-32"
+              triggerClassName="w-full min-w-0 xl:min-w-32"
             />
             <Button variant="outline" size="sm" className="h-9 whitespace-nowrap" onClick={clearFilters} disabled={!hasActiveFilters}>
               Clear
@@ -575,7 +577,7 @@ export function AdminVideosPage() {
       }
     >
 
-      <Card className="flex min-h-[560px] flex-col overflow-hidden">
+      <Card className="flex min-h-[380px] flex-col overflow-hidden sm:min-h-[560px]">
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5">
           <div className="flex items-center gap-2 text-sm font-bold">
             <Video className="size-4 text-primary" />
@@ -589,7 +591,7 @@ export function AdminVideosPage() {
         ) : (
           <>
             <div className="min-h-0 flex-1 overflow-auto scrollbar-stable">
-              <table className="w-full min-w-[780px] text-left text-sm">
+              <table className="w-full min-w-[660px] text-left text-sm sm:min-w-[780px]">
                 <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 text-xs uppercase tracking-[0.12em] text-muted-foreground backdrop-blur">
                   <tr>
                     <th className="px-4 py-2.5 font-bold">Video</th>

@@ -380,7 +380,7 @@ export function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-[100dvh] bg-background overflow-hidden">
       <RecommendationRealtimeSync />
       {/* ── Desktop sidebar ─────────────────────── */}
       <aside
@@ -506,10 +506,6 @@ export function AppLayout() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{displayName}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Flame className="size-3 text-accent-amber" />
-                    {streakDays} day streak
-                  </p>
                 </div>
               </div>
               <button
@@ -538,9 +534,20 @@ export function AppLayout() {
           <span className="font-bold text-sm">DictaLearn</span>
         </Link>
 
-        <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Flame className="size-3.5 text-accent-amber" />
-          <span className="font-semibold tabular-nums">{streakDays}</span>
+        <div
+          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full border border-accent-amber/35 bg-accent-amber/15 px-2.5 text-foreground shadow-soft"
+          aria-label={`${streakDays} day streak`}
+          title={`${streakDays} day streak`}
+        >
+          <span className="flex size-5 items-center justify-center rounded-full bg-accent-amber/20 text-accent-orange">
+            <Flame className="size-3.5 fill-accent-amber/45" />
+          </span>
+          <span className="text-sm font-extrabold leading-none tabular-nums">
+            {streakDays}
+          </span>
+          <span className="hidden text-[10px] font-bold uppercase tracking-normal text-muted-foreground min-[390px]:inline">
+            Streak
+          </span>
         </div>
       </div>
 

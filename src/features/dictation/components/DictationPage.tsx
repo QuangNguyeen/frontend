@@ -865,7 +865,7 @@ export function DictationPage() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2.5">
 
             {/* Video player — height-capped so controls + input stay on screen */}
-            <div className="mx-auto w-full max-w-[min(100%,calc((100dvh-21rem)*16/9))] rounded-[18px] overflow-hidden border border-border bg-card shadow-soft shrink-0">
+            <div className="mx-auto w-full max-w-full rounded-[18px] overflow-hidden border border-border bg-card shadow-soft shrink-0 sm:max-w-[min(100%,calc((100dvh-21rem)*16/9))]">
               <YoutubePlayer
                 ref={playerHandle}
                 videoId={video.youtube_id}
@@ -1174,7 +1174,7 @@ export function DictationPage() {
               <List className="h-4 w-4" /> Sentences
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="h-[60vh] p-0 rounded-t-3xl">
+          <SheetContent side="bottom" className="h-[60dvh] p-0 rounded-t-3xl">
             <SheetHeader className="px-4 pt-3 pb-2 border-b border-border">
               <SheetTitle className="text-sm">Sentences — {results.length}/{totalSentences}</SheetTitle>
             </SheetHeader>

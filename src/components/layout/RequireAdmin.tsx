@@ -35,7 +35,7 @@ export function RequireAdmin() {
 
   if (isAuthenticated && !hasCheckedAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
       </div>
     );

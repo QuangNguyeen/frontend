@@ -26,7 +26,7 @@ export function PageStickyArea({
   className?: string;
 }) {
   return (
-    <div className={cn('shrink-0 pt-6 pb-4 space-y-5 lg:pt-8', className)}>
+    <div className={cn('shrink-0 space-y-4 pt-4 pb-3 lg:pt-5', className)}>
       {children}
     </div>
   );
@@ -74,25 +74,25 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        'rounded-2xl border border-border bg-card shadow-soft',
+        'page-header rounded-2xl border border-border bg-card shadow-soft',
         className,
       )}
     >
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <h1 className="truncate text-2xl font-extrabold leading-tight tracking-[-0.025em] text-foreground">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 p-2.5 sm:p-3">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+          <h1 className="min-w-0 truncate text-lg font-extrabold leading-tight tracking-normal text-foreground sm:text-xl">
             {title}
           </h1>
           {meta && <div className="shrink-0">{meta}</div>}
         </div>
         {actions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex shrink-0 items-center justify-end gap-1.5">
             {actions}
           </div>
         )}
       </div>
       {toolbar && (
-        <div className="border-t border-border p-3 sm:px-5 sm:py-3">
+        <div className="border-t border-border p-2.5 sm:px-3 sm:py-2.5">
           {toolbar}
         </div>
       )}
@@ -112,7 +112,7 @@ export function CountBadge({
   return (
     <span
       className={cn(
-        'inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-bold',
+        'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold',
         tone === 'primary'
           ? 'border-primary/20 bg-primary-soft text-primary-hover'
           : 'border-border bg-card text-muted-foreground',
@@ -138,11 +138,11 @@ export function RefreshButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-primary transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-primary transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
       aria-label={label}
       title={label}
     >
-      <RefreshCw className="h-4 w-4" />
+      <RefreshCw className="h-3.5 w-3.5" />
     </button>
   );
 }
@@ -161,7 +161,7 @@ export function HeaderActionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors',
+        'inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-bold transition-colors',
         variant === 'primary'
           ? 'bg-primary text-primary-foreground hover:bg-primary-hover'
           : 'bg-primary-soft text-primary-hover hover:bg-primary-light/35',

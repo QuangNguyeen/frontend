@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Eye, EyeOff, Loader2, AudioLines, BookMarked, Trophy } from 'lucide-react';
-import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import { type CredentialResponse } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRegister, useGoogleLogin } from '../hooks/useAuth';
 import { extractApiError } from '@/shared/lib/httpClient';
+import { ResponsiveGoogleLogin } from './ResponsiveGoogleLogin';
 
 const features = [
   { icon: AudioLines, label: 'Practice from real videos' },
@@ -48,16 +49,16 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="auth-layout min-h-screen px-4 py-8 flex items-center justify-center">
-      <div className="grid w-full max-w-[1040px] overflow-hidden rounded-[18px] border border-border bg-card shadow-soft-lg md:grid-cols-[1.1fr_0.9fr]">
+    <div className="auth-layout flex min-h-[100dvh] items-center justify-center px-4 pb-[calc(1rem+var(--safe-bottom))] pt-[calc(1rem+var(--safe-top))] sm:py-8">
+      <div className="grid w-full max-w-md overflow-hidden rounded-[18px] border border-border bg-card shadow-soft-lg md:max-w-[1040px] md:grid-cols-[1.1fr_0.9fr]">
         {/* ── Left: Branding panel ── */}
-        <div className="hidden md:flex flex-col justify-between border-r border-border bg-muted p-8 lg:p-10 min-h-[580px]">
+        <div className="hidden md:flex flex-col justify-between border-r border-border bg-muted p-8 lg:p-10 md:min-h-[540px] lg:min-h-[580px]">
           <div>
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary shadow-soft">
               <Headphones className="h-5 w-5 text-primary-foreground" />
             </div>
 
-            <h1 className="mt-5 text-[28px] font-extrabold tracking-[-0.03em] text-foreground leading-tight">
+            <h1 className="mt-5 text-[28px] font-extrabold tracking-normal text-foreground leading-tight">
               DictaLearn
             </h1>
 
@@ -86,17 +87,17 @@ export function RegisterPage() {
         </div>
 
         {/* ── Right: Register form ── */}
-        <div className="flex flex-col items-center justify-center bg-card px-6 py-10 sm:px-10 lg:px-14">
+        <div className="flex min-w-0 flex-col items-center justify-center bg-card px-5 py-5 sm:px-10 sm:py-8 lg:px-14">
           <div className="w-full max-w-[360px]">
             {/* Mobile-only logo */}
-            <div className="flex flex-col items-center md:hidden mb-6">
+            <div className="mb-3 flex flex-col items-center md:hidden">
               <div className="h-11 w-11 rounded-2xl bg-primary flex items-center justify-center shadow-soft">
                 <Headphones className="h-5 w-5 text-primary-foreground" />
               </div>
             </div>
 
             <div className="md:text-left text-center">
-              <h1 className="text-[28px] font-extrabold tracking-[-0.03em] text-foreground leading-tight">
+              <h1 className="text-2xl font-extrabold tracking-normal text-foreground leading-tight sm:text-[28px]">
                 Create account
               </h1>
               <p className="mt-2 text-[14px] text-muted-foreground">
@@ -104,7 +105,7 @@ export function RegisterPage() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-6">
+            <form onSubmit={handleSubmit} className="mt-4 sm:mt-6">
               {error && (
                 <div className="mb-4 bg-destructive/10 border border-destructive/30 text-destructive text-[13px] px-3.5 py-2.5 rounded-xl">
                   {error}
@@ -174,7 +175,7 @@ export function RegisterPage() {
             </form>
 
             {/* Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4 sm:my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border" />
               </div>
@@ -186,17 +187,17 @@ export function RegisterPage() {
             </div>
 
             {/* Google login */}
-            <div className="flex justify-center">
+            <div className="flex w-full justify-center">
               {googleLoginMutation.isPending ? (
                 <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Signing in with Google...
                 </div>
               ) : (
-                <GoogleLogin
+                <ResponsiveGoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => setError('Google sign-in failed')}
-                  width="360"
+                  maxWidth={360}
                   text="signup_with"
                   shape="rectangular"
                   theme="outline"
@@ -205,7 +206,7 @@ export function RegisterPage() {
             </div>
 
             {/* Footer */}
-            <p className="text-center text-[13px] text-muted-foreground mt-6">
+            <p className="mt-4 text-center text-[13px] text-muted-foreground sm:mt-6">
               Already have an account?{' '}
               <Link to="/login" className="text-primary font-bold hover:underline">
                 Sign in

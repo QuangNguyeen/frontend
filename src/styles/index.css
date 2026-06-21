@@ -7,6 +7,11 @@
 @tailwind utilities;
 
 :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+
     --sidebar-expanded-width: 248px;
     --sidebar-collapsed-width: 72px;
     --sidebar-width: var(--sidebar-expanded-width);
@@ -220,12 +225,19 @@
   * {
     @apply border-border outline-ring/50;
     }
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    min-width: 320px;
+    overflow-x: hidden;
     }
   html {
     @apply font-sans;
@@ -562,7 +574,7 @@
   }
 
   .ui-page-title {
-    @apply text-3xl font-extrabold tracking-[-0.03em] leading-[1.15] text-foreground;
+    @apply text-xl font-extrabold tracking-normal leading-[1.15] text-foreground sm:text-2xl;
   }
 
   .ui-subtitle {
@@ -684,6 +696,48 @@
   z-index: 2;
   background: var(--card);
   box-shadow: -6px 0 12px rgba(0, 0, 0, 0.08);
+}
+
+.page-header {
+  --page-header-control-height: 32px;
+  --page-header-control-radius: 10px;
+}
+
+.page-header :is(input:not([type="checkbox"]):not([type="radio"]), [role="combobox"], [data-slot="button"], button) {
+  min-height: var(--page-header-control-height);
+  height: var(--page-header-control-height);
+  border-radius: var(--page-header-control-radius);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.page-header :is(button, [data-slot="button"]) {
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+}
+
+.page-header button:has(> svg:only-child),
+.page-header [data-slot="button"]:has(> svg:only-child) {
+  width: var(--page-header-control-height);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.page-header textarea {
+  min-height: 64px;
+  border-radius: var(--page-header-control-radius);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.page-header :is(input:not([type="checkbox"]):not([type="radio"]), textarea, [role="combobox"]) {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+.page-header svg {
+  width: 14px;
+  height: 14px;
 }
 
 .auth-layout {
