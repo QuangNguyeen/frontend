@@ -12,6 +12,12 @@ export function ResponsiveGoogleLogin({
   maxWidth = 360,
   minWidth = 180,
   className,
+  // Enable a FedCM-based One Tap flow by default. This gives mobile browsers a
+  // sign-in path that uses the browser's native account chooser instead of a
+  // popup window (popups are frequently blocked on iOS/Safari and in-app
+  // browsers). The rendered button stays as a fallback.
+  useOneTap = true,
+  use_fedcm_for_prompt = true,
   ...props
 }: ResponsiveGoogleLoginProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -42,7 +48,12 @@ export function ResponsiveGoogleLogin({
 
   return (
     <div ref={rootRef} className={cn('flex w-full justify-center', className)}>
-      <GoogleLogin {...props} width={width} />
+      <GoogleLogin
+        {...props}
+        width={width}
+        useOneTap={useOneTap}
+        use_fedcm_for_prompt={use_fedcm_for_prompt}
+      />
     </div>
   );
 }

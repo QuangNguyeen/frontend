@@ -60,21 +60,21 @@ export function CreateRoomModal({ open, onOpenChange }: CreateRoomModalProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="gap-5 p-5 sm:max-w-md sm:p-6">
           <DialogHeader>
             <DialogTitle>Create Room</DialogTitle>
             <DialogDescription>Set up a multiplayer dictation room</DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {/* Video selection */}
             <div>
-              <Label>Video</Label>
+              <Label className="mb-2">Video</Label>
               <button
                 type="button"
                 onClick={() => setPickerOpen(true)}
                 className={cn(
-                  'w-full mt-1 flex items-center gap-3 p-3 rounded-lg border border-dashed transition-all text-left',
+                  'w-full flex items-center gap-3 p-3 rounded-lg border border-dashed transition-all text-left',
                   selectedVideo
                     ? 'border-primary/30 bg-primary/5 hover:border-primary/50'
                     : 'border-border hover:border-primary/30 hover:bg-muted/30',
@@ -118,9 +118,9 @@ export function CreateRoomModal({ open, onOpenChange }: CreateRoomModalProps) {
             </div>
 
             {/* Room settings */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="maxPlayers">Max Players</Label>
+                <Label htmlFor="maxPlayers" className="mb-2">Max Players</Label>
                 <Input
                   id="maxPlayers"
                   type="number"
@@ -131,7 +131,7 @@ export function CreateRoomModal({ open, onOpenChange }: CreateRoomModalProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="maxReplays">Max Replays</Label>
+                <Label htmlFor="maxReplays" className="mb-2">Max Replays</Label>
                 <Input
                   id="maxReplays"
                   type="number"
@@ -142,7 +142,7 @@ export function CreateRoomModal({ open, onOpenChange }: CreateRoomModalProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="examDuration">Time (min)</Label>
+                <Label htmlFor="examDuration" className="mb-2">Time (min)</Label>
                 <Input
                   id="examDuration"
                   type="number"
@@ -151,12 +151,12 @@ export function CreateRoomModal({ open, onOpenChange }: CreateRoomModalProps) {
                   value={examDuration}
                   onChange={(e) => setExamDuration(Number(e.target.value))}
                 />
-                <p className="text-[10px] text-muted-foreground mt-0.5">0 = no limit</p>
+                <p className="text-[10px] text-muted-foreground mt-1.5">0 = no limit</p>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 mt-2">
+          <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={loading || !selectedVideo}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}

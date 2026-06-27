@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarClock, Loader2, MoreHorizontal, RefreshCcw, Search, ShieldCheck, Users } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, MoreHorizontal, RefreshCcw, Search, ShieldCheck, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,10 +21,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { AdminUserResponse } from '@/shared/types/api';
-import { useAdminUser, useAdminUsers, usePatchAdminUser } from '../../hooks/useAdmin';
+import { useAdminUsers, usePatchAdminUser } from '../../hooks/useAdmin';
 import { AdminPageShell } from '../AdminPageShell';
 import { AdminPagination } from '../AdminPagination';
 import { AdminEmptyState, AdminLoadingSkeleton } from '../AdminStates';
@@ -70,12 +69,12 @@ function RoleBadge({ user }: { user: AdminUserResponse }) {
 }
 
 export function AdminUsersPage() {
+  const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.user);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('');
   const [active, setActive] = useState('');
   const [page, setPage] = useState(1);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     user: AdminUserResponse;
     type: 'role' | 'active';
@@ -94,7 +93,6 @@ export function AdminUsersPage() {
   );
 
   const { data, isLoading, isFetching, refetch } = useAdminUsers(params);
-  const selectedUser = useAdminUser(selectedUserId);
   const patchUser = usePatchAdminUser();
 
   const confirmAction = () => {
@@ -187,7 +185,7 @@ export function AdminUsersPage() {
                         <tr
                           key={user.id}
                           className="h-12 cursor-pointer align-middle transition-colors hover:bg-muted/35"
-                          onClick={() => setSelectedUserId(user.id)}
+                          onClick={() => navigate(`/admin/users/${user.id}`)}
                         >
                           <td className="px-4 py-2.5">
                             <div className="flex min-w-0 items-center gap-3">
@@ -252,9 +250,9 @@ export function AdminUsersPage() {
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={(event) => {
                                     event.stopPropagation();
-                                    setSelectedUserId(user.id);
+                                    navigate(`/admin/users/${user.id}`);
                                   }}>
-                                    View stats
+                                    View detail
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -285,66 +283,6 @@ export function AdminUsersPage() {
             </>
           )}
         </Card>
-
-        <Sheet open={Boolean(selectedUserId)} onOpenChange={(open) => !open && setSelectedUserId(null)}>
-          <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-4 sm:w-[420px] sm:p-5">
-            <SheetHeader>
-              <SheetTitle>User overview</SheetTitle>
-            </SheetHeader>
-            {selectedUser.isLoading ? (
-              <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
-                <Loader2 className="size-5 animate-spin" />
-              </div>
-            ) : selectedUser.data ? (
-              <div className="mt-2">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                    User Detail
-                  </p>
-                  <h3 className="mt-1 text-lg font-extrabold">{selectedUser.data.display_name}</h3>
-                  <p className="text-sm text-muted-foreground">{selectedUser.data.email}</p>
-                </div>
-                <RoleBadge user={selectedUser.data} />
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <p className="text-xs font-bold text-muted-foreground">Attempts</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums">{selectedUser.data.stats.total_attempts}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <p className="text-xs font-bold text-muted-foreground">Accuracy</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums">{selectedUser.data.stats.average_score}%</p>
-                </div>
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <p className="text-xs font-bold text-muted-foreground">Vocabulary</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums">{selectedUser.data.stats.total_vocabulary}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <p className="text-xs font-bold text-muted-foreground">Longest streak</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums">{selectedUser.data.stats.longest_streak}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">
-                <CalendarClock className="size-4 text-primary" />
-                Joined {formatDate(selectedUser.data.created_at)}
-              </div>
-              <Button asChild className="mt-4 w-full">
-                <Link to={`/admin/users/${selectedUser.data.id}`}>
-                  Open full profile
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              </div>
-            ) : (
-              <div className="flex min-h-[260px] items-center justify-center text-sm text-muted-foreground">
-                Unable to load user detail.
-              </div>
-            )}
-          </SheetContent>
-        </Sheet>
 
         <AlertDialog open={Boolean(pendingAction)} onOpenChange={(open) => !open && setPendingAction(null)}>
           <AlertDialogContent>

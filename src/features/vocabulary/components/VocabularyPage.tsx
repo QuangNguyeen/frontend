@@ -353,18 +353,18 @@ export function VocabularyPage() {
                   className="w-full h-11 pl-10 pr-4 py-2 text-sm bg-card border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/25 placeholder:text-muted-foreground"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleExport} className="flex-1 gap-1.5 h-10 sm:flex-none">
+              <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-auto sm:justify-end">
+                <Button variant="outline" size="sm" onClick={handleExport} className="h-11 min-w-28 shrink-0 justify-center gap-1.5 whitespace-nowrap px-4">
                   <Download className="h-4 w-4" />
                   Export
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="flex-1 gap-1.5 h-10 sm:flex-none">
+                <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="h-11 min-w-28 shrink-0 justify-center gap-1.5 whitespace-nowrap px-4">
                   <Upload className="h-4 w-4" />
                   Import
                 </Button>
                 <Button
                   onClick={() => navigate('/vocabulary/review')}
-                  className="flex-1 gap-2 h-10 sm:flex-none whitespace-nowrap"
+                  className="h-11 min-w-fit shrink-0 gap-2 whitespace-nowrap px-3"
                   size="sm"
                 >
                   <GraduationCap className="h-4 w-4" />

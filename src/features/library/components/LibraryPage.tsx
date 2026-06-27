@@ -10,7 +10,7 @@ import { TagMultiSelect } from '@/components/ui/tag-multi-select';
 import {
   Search, Plus, Clock, BarChart2, Globe, Play, BookmarkCheck,
   Loader2, AlertCircle, Trash2, Pencil, Puzzle, Check,
-  PlayCircle, AlertTriangle,
+  PlayCircle, AlertTriangle, SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppInput } from '@/components/ui/app-input';
@@ -22,7 +22,7 @@ import {
   AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { AppSelect } from '@/components/ui/app-select';
 import { cn } from '@/lib/utils';
@@ -357,13 +357,63 @@ export function LibraryPage() {
 
   const isAdmin = useAuthStore((s) => s.user?.is_admin ?? false);
 
-  const levelOptions = getSharedLevelOptions(selectedLang);
   const effectiveSelectedLevel =
     selectedLevel !== 'All' && isLevelValidForLanguage(selectedLang, selectedLevel)
       ? selectedLevel
       : 'All';
 
   const [importOpen, setImportOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // Draft filter state — edited inside the popup and only committed to the store
+  // (which drives the query) when the user clicks "Done".
+  const [draftLang, setDraftLang] = useState(selectedLang);
+  const [draftLevel, setDraftLevel] = useState(selectedLevel);
+  const [draftTopics, setDraftTopics] = useState(selectedTopics);
+
+  const draftLevelOptions = getSharedLevelOptions(draftLang);
+  const draftEffectiveLevel =
+    draftLevel !== 'All' && isLevelValidForLanguage(draftLang, draftLevel)
+      ? draftLevel
+      : 'All';
+
+  // Count of applied (non-default) filters — drives the badge on the Filter button.
+  const activeFilterCount =
+    (selectedLang !== 'All' ? 1 : 0) +
+    (selectedTopics.length > 0 ? 1 : 0) +
+    (effectiveSelectedLevel !== 'All' ? 1 : 0);
+
+  // Count of draft filters — drives the Reset button's disabled state.
+  const draftFilterCount =
+    (draftLang !== 'All' ? 1 : 0) +
+    (draftTopics.length > 0 ? 1 : 0) +
+    (draftEffectiveLevel !== 'All' ? 1 : 0);
+
+  // Seed the draft from the applied filters each time the popup opens; closing
+  // without "Done" simply discards the draft (nothing is committed).
+  const handleFilterOpenChange = (open: boolean) => {
+    if (open) {
+      setDraftLang(selectedLang);
+      setDraftLevel(selectedLevel);
+      setDraftTopics(selectedTopics);
+    }
+    setFilterOpen(open);
+  };
+
+  // Reset the draft back to defaults (applied on "Done"). Search is untouched.
+  const resetDraft = () => {
+    setDraftLang('All');
+    setDraftLevel('All');
+    setDraftTopics([]);
+  };
+
+  // Commit the draft to the persisted store, then close.
+  const applyFilters = () => {
+    setSelectedLang(draftLang);
+    setSelectedLevel(draftLevel);
+    setSelectedTopics(draftTopics);
+    setFilterOpen(false);
+  };
 
   const { data: tags = [] } = useActiveTopicTags();
   // TagMultiSelect reports the option `id`; we use slugs as ids since the catalog
@@ -399,62 +449,38 @@ export function LibraryPage() {
           actions={(
             <div className="flex items-center gap-2">
               <RefreshButton onClick={() => refetch()} />
-              <Button size="sm" onClick={() => setImportOpen(true)}>
+              <Button size="sm" onClick={() => setImportOpen(true)} className="min-w-30 gap-1 whitespace-nowrap px-2">
                 <Plus className="h-4 w-4" />
                 Import video
               </Button>
             </div>
           )}
           toolbar={(
-            <div className="flex flex-col gap-2">
-              {/* Search + filters */}
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
-                <AppInput
-                  icon={<Search className="h-4 w-4" />}
-                  type="text"
-                  placeholder="Search videos..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  wrapperClassName="col-span-2 w-full sm:flex-1 sm:min-w-48 sm:max-w-xs"
-                />
-
-                <AppSelect
-                  value={selectedLang}
-                  onValueChange={(val) => {
-                    setSelectedLang(val);
-                    setSelectedLevel(
-                      selectedLevel !== 'All' && isLevelValidForLanguage(val, selectedLevel)
-                        ? selectedLevel
-                        : 'All',
-                    );
-                  }}
-                  options={LIBRARY_LANGUAGE_OPTIONS}
-                  triggerClassName="w-full sm:w-auto sm:min-w-36"
-                />
-
-                <TagMultiSelect
-                  options={topicOptions}
-                  value={selectedTopics}
-                  onChange={setSelectedTopics}
-                  placeholder="All topics"
-                  emptyText="No topic tags"
-                  allowSelectAll
-                  className="w-full sm:w-auto sm:min-w-36 sm:max-w-72"
-                />
-
-                <div className="col-span-2 -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-                  {[{ value: 'All', label: 'All' }, ...levelOptions].map((level) => (
-                    <FilterChip
-                      key={level.value}
-                      selected={effectiveSelectedLevel === level.value}
-                      onClick={() => setSelectedLevel(level.value)}
-                      className="shrink-0"
-                    >
-                      {level.label}
-                    </FilterChip>
-                  ))}
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <AppInput
+                icon={<Search className="h-4 w-4" />}
+                type="text"
+                placeholder="Search videos..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                wrapperClassName="min-w-0 flex-1 sm:max-w-xs"
+              />
+              <Button
+                variant="outline"
+                onClick={() => setFilterOpen(true)}
+                className={cn(
+                  'h-11 min-w-20 shrink-0 justify-center gap-2 whitespace-nowrap px-5',
+                  activeFilterCount > 0 && 'border-primary/50 bg-primary-soft text-foreground',
+                )}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Filter
+                {activeFilterCount > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
             </div>
           )}
         />
@@ -500,6 +526,75 @@ export function LibraryPage() {
       </PageScrollArea>
 
       <ImportVideoDialog open={importOpen} onOpenChange={setImportOpen} />
+
+      <Dialog open={filterOpen} onOpenChange={handleFilterOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Filters</DialogTitle>
+            <DialogDescription>
+              Refine the video list by language, topic, and level. Changes apply when you click Done.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4 py-1">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Language</label>
+              <AppSelect
+                value={draftLang}
+                onValueChange={(val) => {
+                  setDraftLang(val);
+                  setDraftLevel(
+                    draftLevel !== 'All' && isLevelValidForLanguage(val, draftLevel)
+                      ? draftLevel
+                      : 'All',
+                  );
+                }}
+                options={LIBRARY_LANGUAGE_OPTIONS}
+                triggerClassName="w-full"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Topic</label>
+              <TagMultiSelect
+                options={topicOptions}
+                value={draftTopics}
+                onChange={setDraftTopics}
+                placeholder="All topics"
+                emptyText="No topic tags"
+                allowSelectAll
+                className="w-full"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Level</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[{ value: 'All', label: 'All' }, ...draftLevelOptions].map((level) => (
+                  <FilterChip
+                    key={level.value}
+                    selected={draftEffectiveLevel === level.value}
+                    onClick={() => setDraftLevel(level.value)}
+                  >
+                    {level.label}
+                  </FilterChip>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={resetDraft}
+              disabled={draftFilterCount === 0}
+            >
+              Reset filters
+            </Button>
+            <Button onClick={applyFilters}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

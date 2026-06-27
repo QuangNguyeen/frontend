@@ -157,7 +157,7 @@ export function WordSavePanel({
       </div>
 
       {/* Inline paragraph — reads like natural English with colored highlights */}
-      <p className={cn('text-foreground select-none', compact ? 'text-sm leading-6' : 'text-lg leading-[2]')}>
+      <p className={cn('text-foreground select-none', compact ? 'text-sm leading-8' : 'text-lg leading-[2.1]')}>
         {tokens.map((tok, i) => {
           const isSaved = !!tok.clean && saved.has(tok.clean);
           const isSelected = !!tok.clean && previewingWord === tok.clean;
@@ -172,7 +172,7 @@ export function WordSavePanel({
                 : isMasked
                   ? 'bg-muted/50 text-muted-foreground/50 font-mono tracking-widest rounded'
                   : tok.isHard
-                    ? 'underline decoration-wavy decoration-accent-orange/60 underline-offset-4'
+                    ? 'underline decoration-wavy decoration-accent-orange/60 underline-offset-2'
                     : '';
 
           const interactiveClass = isSaved
@@ -200,7 +200,11 @@ export function WordSavePanel({
                 } : {})}
                 title={isMasked ? 'Hidden — fix the error first' : undefined}
                 className={cn(
-                  'inline-block rounded-sm px-0.5 -mx-0.5 transition-all duration-200',
+                  // Inline (not inline-block) so highlight backgrounds and the dashed
+                  // underline hug the text instead of filling the full line-height and
+                  // colliding with adjacent wrapped lines. box-decoration-break keeps the
+                  // highlight clean if a token ever wraps.
+                  'rounded-sm px-0.5 transition-all duration-200 [box-decoration-break:clone] [-webkit-box-decoration-break:clone]',
                   // Saved/selected override the status color
                   (isSaved || isSelected) ? interactiveClass : cn(statusClass, interactiveClass),
                 )}

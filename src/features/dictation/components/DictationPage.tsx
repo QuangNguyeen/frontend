@@ -13,6 +13,16 @@ import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
 import { useDictationSession, useSubmitAnswer, useCompleteSession } from '../hooks/useDictation';
 import { useVideo, useVideoTranscripts } from '@/features/library/hooks/useVideos';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import type {
@@ -49,10 +59,11 @@ interface DictationInputPanelProps {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   inputValue: string;
   latestDiffCheck: SentenceResultResponse | null;
+  isRevealAllFeedback: boolean;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onSkip: () => void;
   onSubmit: () => void;
+  onRetryRevealAll: () => void;
   onWordClick: (word: string, contextSentence: string, startTime: number, anchorEl: HTMLElement) => void;
 }
 
@@ -153,24 +164,15 @@ function PracticeActionButtons({
   isVerifying,
   canSubmit,
   isRetry,
-  onSkip,
   onSubmit,
 }: {
   isVerifying: boolean;
   canSubmit: boolean;
   isRetry: boolean;
-  onSkip: () => void;
   onSubmit: () => void;
 }) {
   return (
     <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto">
-      <button
-        onClick={onSkip}
-        disabled={isVerifying}
-        className="h-[34px] rounded-[10px] px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary-hover disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        Skip
-      </button>
       <Button
         size="sm"
         onClick={onSubmit}
@@ -198,10 +200,11 @@ function DictationInputPanel({
   inputRef,
   inputValue,
   latestDiffCheck,
+  isRevealAllFeedback,
   onInputChange,
   onKeyDown,
-  onSkip,
   onSubmit,
+  onRetryRevealAll,
   onWordClick,
 }: DictationInputPanelProps) {
   const isRetry = !!latestDiffCheck && !latestDiffCheck.word_diffs.every((d) => d.status === 'correct');
@@ -224,7 +227,7 @@ function DictationInputPanel({
       {latestDiffCheck && currentSentence && videoId && (
         <div
           className={cn(
-            'min-h-10 max-h-20 overflow-y-auto rounded-lg border px-3 py-2 text-xs',
+            'min-h-10 overflow-visible rounded-lg border px-3 py-2 text-xs',
             isRetry
               ? 'border-accent-orange/25 bg-accent-orange/10 text-accent-orange'
               : 'border-[color:var(--badge-success)]/25 bg-[color:var(--badge-success)]/10 text-[color:var(--badge-success)]',
@@ -255,6 +258,20 @@ function DictationInputPanel({
         </div>
       )}
 
+      {isRevealAllFeedback ? (
+        <div className="mt-3 flex items-center justify-end border-t border-border pt-3">
+          <Button
+            size="sm"
+            type="button"
+            onClick={onRetryRevealAll}
+            disabled={isVerifying}
+            className="h-[34px] gap-1.5 rounded-[10px] px-4 text-[13px] font-bold transition-all active:scale-95"
+          >
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <>
       <textarea
         ref={inputRef}
         value={inputValue}
@@ -281,10 +298,11 @@ function DictationInputPanel({
           isVerifying={isVerifying}
           canSubmit={!!inputValue.trim()}
           isRetry={isRetry}
-          onSkip={onSkip}
           onSubmit={onSubmit}
         />
       </div>
+        </>
+      )}
     </section>
   );
 }
@@ -349,6 +367,7 @@ export function DictationPage() {
   // ── Dotted hint state ─────────────────────────────────────────────────────
   const [revealedHintIndices, setRevealedHintIndices] = useState<Set<number>>(new Set());
   const [allHintsRevealed, setAllHintsRevealed] = useState(false);
+  const [showRevealAllConfirm, setShowRevealAllConfirm] = useState(false);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: video, isLoading: videoLoading, isError: videoError } = useVideo(videoId);
@@ -513,6 +532,38 @@ export function DictationPage() {
     [currentIndex, currentSentence],
   );
 
+  const advanceToNextSentence = useCallback(
+    (
+      effectiveResults: LocalResult[] = results,
+      effectiveServerResults: Map<number, SentenceResultResponse> = serverResults,
+    ) => {
+      const next = currentIndex + 1;
+      if (next >= totalSentences) {
+        completeMutation.mutate();
+        const totalScore =
+          effectiveResults.length > 0
+            ? Math.round(effectiveResults.reduce((s, r) => s + r.score, 0) / effectiveResults.length)
+            : 0;
+        navigate(`/result/${videoId}`, {
+          state: {
+            video,
+            results: effectiveResults.map((r) => ({
+              sentenceIndex: r.sentenceIndex,
+              userInput: r.userInput,
+              correctText: r.correctText,
+              score: r.score,
+              wordDiffs: effectiveServerResults.get(r.sentenceIndex)?.word_diffs ?? [],
+            })),
+            totalScore,
+          },
+        });
+        return;
+      }
+      setCurrentIndex(next);
+    },
+    [completeMutation, currentIndex, navigate, results, serverResults, totalSentences, video, videoId],
+  );
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handlePlay = useCallback(() => {
@@ -603,17 +654,50 @@ export function DictationPage() {
   }, []);
 
   const handleRevealAllHints = useCallback(() => {
-    setAllHintsRevealed(true);
-    setHintsUsed((h) => h + 1);
-  }, []);
+    if (isVerifying) return;
+    setShowRevealAllConfirm(true);
+  }, [isVerifying]);
 
-  const handleSkip = useCallback(async () => {
+  const handleSkipCurrentSentence = useCallback(() => {
     if (isVerifying) return;
     const existingResult = results.find((r) => r.sentenceIndex === currentIndex);
     if (existingResult) {
-      finalizeSentence(existingResult.userInput, existingResult.score);
+      if (autoNextRef.current) advanceToNextSentence(results, serverResults);
       return;
     }
+
+    playerHandle.current?.pause();
+    setIsVideoPlaying(false);
+    setPhase('practicing');
+
+    const buildSkippedResults = (): LocalResult[] => [
+      ...results.filter((r) => r.sentenceIndex !== currentIndex),
+      {
+        sentenceIndex: currentIndex,
+        score: 0,
+        userInput: '',
+        correctText: currentSentence?.text ?? '',
+      },
+    ];
+
+    const showSkippedFeedback = (result: SentenceResultResponse | null) => {
+      const nextServerResults = result
+        ? new Map(serverResults).set(currentIndex, result)
+        : serverResults;
+      if (result) setServerResults(nextServerResults);
+      setIsVerifying(false);
+      setPhase('practicing');
+
+      if (autoNextRef.current) {
+        const nextResults = buildSkippedResults();
+        setResults(nextResults);
+        advanceToNextSentence(nextResults, nextServerResults);
+        return;
+      }
+
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+
     setIsVerifying(true);
     submitMutation.mutate(
       {
@@ -625,49 +709,53 @@ export function DictationPage() {
       },
       {
         onSuccess: (result) => {
-          setIsVerifying(false);
-          if (result) {
-            setServerResults((prev) => new Map(prev).set(currentIndex, result));
-          }
-          finalizeSentence('', 0);
+          showSkippedFeedback(result ?? null);
         },
         onError: () => {
-          setIsVerifying(false);
-          finalizeSentence('', 0);
+          showSkippedFeedback(null);
         },
       },
     );
-  }, [inputValue, hintsUsed, currentIndex, submitMutation, finalizeSentence, isVerifying, results, playCount]);
+  }, [
+    advanceToNextSentence,
+    currentIndex,
+    currentSentence,
+    hintsUsed,
+    inputValue,
+    isVerifying,
+    playCount,
+    results,
+    serverResults,
+    submitMutation,
+  ]);
+
+  const handleConfirmRevealAllSkip = useCallback(() => {
+    setShowRevealAllConfirm(false);
+    setAllHintsRevealed(true);
+    setHintsUsed((h) => h + 1);
+    handleSkipCurrentSentence();
+  }, [handleSkipCurrentSentence]);
+
+  const handleRetryRevealAll = useCallback(() => {
+    setServerResults((prev) => {
+      const next = new Map(prev);
+      next.delete(currentIndex);
+      return next;
+    });
+    setInputValue('');
+    setPhase('practicing');
+    setRevealedHintIndices(new Set());
+    setAllHintsRevealed(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [currentIndex]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
   }, [currentIndex]);
 
   const handleNext = useCallback(() => {
-    const next = currentIndex + 1;
-    if (next >= totalSentences) {
-      completeMutation.mutate();
-      const totalScore =
-        results.length > 0
-          ? Math.round(results.reduce((s, r) => s + r.score, 0) / results.length)
-          : 0;
-      navigate(`/result/${videoId}`, {
-        state: {
-          video,
-          results: results.map((r) => ({
-            sentenceIndex: r.sentenceIndex,
-            userInput: r.userInput,
-            correctText: r.correctText,
-            score: r.score,
-            wordDiffs: serverResults.get(r.sentenceIndex)?.word_diffs ?? [],
-          })),
-          totalScore,
-        },
-      });
-      return;
-    }
-    setCurrentIndex(next);
-  }, [currentIndex, totalSentences, results, serverResults, navigate, videoId, video, completeMutation]);
+    advanceToNextSentence();
+  }, [advanceToNextSentence]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
@@ -958,16 +1046,17 @@ export function DictationPage() {
                 inputRef={inputRef}
                 inputValue={inputValue}
                 latestDiffCheck={latestDiffCheck}
+                isRevealAllFeedback={latestDiffCheck?.is_skipped === true}
                 onInputChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                onSkip={handleSkip}
                 onSubmit={handleSubmit}
+                onRetryRevealAll={handleRetryRevealAll}
                 onWordClick={handleWordPopover}
               />
             )}
 
             {/* Hint bar */}
-            {phase !== 'completed' && currentSentence && (
+            {phase !== 'completed' && currentSentence && !allHintsRevealed && (
               <DottedHintBar
                 sentence={currentSentence.text}
                 revealedIndices={revealedHintIndices}
@@ -1255,6 +1344,26 @@ export function DictationPage() {
           onOpenChange={(open) => !open && setFeedback(null)}
         />
       )}
+
+      <AlertDialog open={showRevealAllConfirm} onOpenChange={setShowRevealAllConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Show all and skip this sentence?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reveal the full answer and show the highlighted words. Auto-Next will move to the next sentence if it is enabled.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isVerifying}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isVerifying}
+              onClick={handleConfirmRevealAllSkip}
+            >
+              Yes, skip
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

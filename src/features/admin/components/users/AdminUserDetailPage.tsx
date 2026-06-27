@@ -30,6 +30,7 @@ import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { extractApiError } from '@/shared/lib/httpClient';
 import { useAdminUser, usePatchAdminUser } from '../../hooks/useAdmin';
 import { AdminPageShell } from '../AdminPageShell';
+import { UserAnalyticsPanel } from './UserAnalyticsPanel';
 import { toast } from 'sonner';
 
 function formatDate(value: string | null) {
@@ -344,18 +345,8 @@ export function AdminUserDetailPage() {
         })}
       </div>
 
-      {/* Placeholder for future analytics */}
-      <Card className="p-4">
-        <h3 className="text-base font-bold">Learning analytics</h3>
-        <div className="mt-3 flex h-40 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-          <BarChart3 className="size-8 opacity-40" />
-          <p className="text-sm font-medium">Detailed user analytics coming soon</p>
-          <p className="max-w-xs text-xs">
-            Per-user study charts, session history, and vocabulary progress will appear here
-            when the user analytics detail view is added.
-          </p>
-        </div>
-      </Card>
+      {/* Learning analytics */}
+      <UserAnalyticsPanel stats={user.stats} totalSessions={user.total_sessions} />
       <AlertDialog
         open={Boolean(pendingAccessAction)}
         onOpenChange={(open) => !open && setPendingAccessAction(null)}

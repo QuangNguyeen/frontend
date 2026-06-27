@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   Send,
+  SlidersHorizontal,
   Trash2,
   MessageSquareWarning,
 } from 'lucide-react';
@@ -41,6 +42,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
 import { TopicTagChips } from '@/components/ui/topic-tag-chips';
 import { TagMultiSelect } from '@/components/ui/tag-multi-select';
 import { EmptyState } from '@/components/patterns/EmptyState';
@@ -64,7 +68,6 @@ import { useActiveTopicTags } from '@/features/library/hooks/useTopicTags';
 import { useMyPractice, useRemoveFromMyPractice } from '../hooks/useMyPractice';
 import {
   PUBLISH_STATUS_META,
-  PUBLISH_STATUS_OPTIONS,
   TRANSCRIPTION_STATUS_META,
   TRANSCRIPTION_STATUS_OPTIONS,
   canRequestPublish,
@@ -250,7 +253,6 @@ export function MyPracticePage() {
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
-  const [publishStatus, setPublishStatus] = useState<'' | PublishStatus>('');
   const [language, setLanguage] = useState('');
   const [level, setLevel] = useState('');
   const [transcriptionStatus, setTranscriptionStatus] = useState<'' | TranscriptionStatus>('');
@@ -258,9 +260,17 @@ export function MyPracticePage() {
   const [page, setPage] = useState(1);
 
   const [importOpen, setImportOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<VideoResponse | null>(null);
   const [publishTarget, setPublishTarget] = useState<VideoResponse | null>(null);
   const [reportTarget, setReportTarget] = useState<VideoResponse | null>(null);
+
+  // Draft filter state — edited inside the popup and only committed to the live
+  // filters (which drive the query) when the user clicks "Done".
+  const [draftLanguage, setDraftLanguage] = useState(language);
+  const [draftLevel, setDraftLevel] = useState(level);
+  const [draftTranscriptionStatus, setDraftTranscriptionStatus] = useState<'' | TranscriptionStatus>(transcriptionStatus);
+  const [draftTopics, setDraftTopics] = useState<string[]>(topicTags);
 
   const { data: tags = [] } = useActiveTopicTags();
   const removeMutation = useRemoveFromMyPractice();
@@ -272,14 +282,53 @@ export function MyPracticePage() {
     [tags],
   );
 
-  const levelOptions = useMemo(() => getLevelOptionsWithAll(language), [language]);
+  const draftLevelOptions = useMemo(() => getLevelOptionsWithAll(draftLanguage), [draftLanguage]);
+
+  // Count of applied (non-default) filters — drives the badge on the Filter button.
+  const activeFilterCount =
+    (language ? 1 : 0) +
+    (level ? 1 : 0) +
+    (transcriptionStatus ? 1 : 0) +
+    (topicTags.length > 0 ? 1 : 0);
+
+  // Count of draft filters — drives the Reset button's disabled state.
+  const draftFilterCount =
+    (draftLanguage ? 1 : 0) +
+    (draftLevel ? 1 : 0) +
+    (draftTranscriptionStatus ? 1 : 0) +
+    (draftTopics.length > 0 ? 1 : 0);
+
+  // Seed the draft from applied filters whenever the popup opens; closing without
+  // "Done" discards the draft (nothing is committed).
+  const handleFilterOpenChange = (open: boolean) => {
+    if (open) {
+      setDraftLanguage(language);
+      setDraftLevel(level);
+      setDraftTranscriptionStatus(transcriptionStatus);
+      setDraftTopics(topicTags);
+    }
+    setFilterOpen(open);
+  };
+
+  // Reset the draft back to defaults (applied on "Done"). Search is untouched.
+  const resetDraft = () => {
+    setDraftLanguage('');
+    setDraftLevel('');
+    setDraftTranscriptionStatus('');
+    setDraftTopics([]);
+  };
+
+  // Commit the draft to the live filters, return to page 1, then close.
+  const applyFilters = () => {
+    setLanguage(draftLanguage);
+    setLevel(draftLevel);
+    setTranscriptionStatus(draftTranscriptionStatus);
+    setTopicTags(draftTopics);
+    setPage(1);
+    setFilterOpen(false);
+  };
 
   const resetPage = () => setPage(1);
-
-  const setTopics = (next: string[]) => {
-    setTopicTags(next);
-    resetPage();
-  };
 
   const addTopic = (slug: string) => {
     setTopicTags((cur) => (cur.includes(slug) ? cur : [...cur, slug]));
@@ -288,7 +337,6 @@ export function MyPracticePage() {
 
   const params: MyPracticeListParams = useMemo(
     () => ({
-      publish_status: publishStatus || undefined,
       language: language || undefined,
       level: level || undefined,
       transcription_status: transcriptionStatus || undefined,
@@ -296,7 +344,7 @@ export function MyPracticePage() {
       page,
       page_size: PAGE_SIZE,
     }),
-    [publishStatus, language, level, transcriptionStatus, topicTags, page],
+    [language, level, transcriptionStatus, topicTags, page],
   );
 
   const { data, isLoading, isError, isFetching, refetch } = useMyPractice(params);
@@ -347,70 +395,37 @@ export function MyPracticePage() {
           actions={
             <div className="flex items-center gap-2">
               <RefreshButton onClick={() => refetch()} disabled={isFetching} />
-              <Button size="sm" onClick={() => setImportOpen(true)}>
+              <Button size="sm" onClick={() => setImportOpen(true)} className="min-w-30 gap-1 whitespace-nowrap px-2">
                 <Plus className="size-4" />
                 Import video
               </Button>
             </div>
           }
           toolbar={
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
               <AppInput
                 icon={<Search className="h-4 w-4" />}
                 placeholder="Search my practice…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                wrapperClassName="w-full sm:max-w-xs"
+                wrapperClassName="min-w-0 flex-1 sm:max-w-xs"
               />
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-                <AppSelect
-                  value={publishStatus}
-                  onValueChange={(v) => {
-                    setPublishStatus(v as '' | PublishStatus);
-                    resetPage();
-                  }}
-                  options={PUBLISH_STATUS_OPTIONS}
-                  triggerClassName="w-full sm:w-auto sm:min-w-40"
-                />
-                <AppSelect
-                  value={language}
-                  onValueChange={(v) => {
-                    setLanguage(v);
-                    setLevel((cur) => (isLevelValidForLanguage(v, cur) ? cur : ''));
-                    resetPage();
-                  }}
-                  options={LANGUAGE_FILTER_OPTIONS}
-                  triggerClassName="w-full sm:w-auto sm:min-w-36"
-                />
-                <AppSelect
-                  value={level}
-                  onValueChange={(v) => {
-                    setLevel(v);
-                    resetPage();
-                  }}
-                  options={levelOptions}
-                  disabled={!language}
-                  triggerClassName="w-full sm:w-auto sm:min-w-28"
-                />
-                <AppSelect
-                  value={transcriptionStatus}
-                  onValueChange={(v) => {
-                    setTranscriptionStatus(v as '' | TranscriptionStatus);
-                    resetPage();
-                  }}
-                  options={TRANSCRIPTION_STATUS_OPTIONS}
-                  triggerClassName="w-full sm:w-auto sm:min-w-36"
-                />
-                <TagMultiSelect
-                  options={topicOptions}
-                  value={topicTags}
-                  onChange={setTopics}
-                  placeholder="All topics"
-                  emptyText="No topic tags"
-                  allowSelectAll
-                  className="col-span-2 w-full sm:col-span-1 sm:w-auto sm:min-w-36 sm:max-w-72"
-                />
-              </div>
+              <Button
+                variant="outline"
+                onClick={() => setFilterOpen(true)}
+                className={cn(
+                  'h-11 min-w-20 shrink-0 justify-center gap-2 whitespace-nowrap px-5',
+                  activeFilterCount > 0 && 'border-primary/50 bg-primary-soft text-foreground',
+                )}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Filter
+                {activeFilterCount > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
             </div>
           }
         />
@@ -483,6 +498,77 @@ export function MyPracticePage() {
       </PageScrollArea>
 
       <ImportVideoDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => refetch()} />
+
+      <Dialog open={filterOpen} onOpenChange={handleFilterOpenChange}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Filters</DialogTitle>
+            <DialogDescription>
+              Filter your practice videos by status, language, level, and topic. Changes apply when you click Done.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4 py-1">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Language</label>
+              <AppSelect
+                value={draftLanguage}
+                onValueChange={(v) => {
+                  setDraftLanguage(v);
+                  setDraftLevel((cur) => (isLevelValidForLanguage(v, cur) ? cur : ''));
+                }}
+                options={LANGUAGE_FILTER_OPTIONS}
+                triggerClassName="w-full"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Level</label>
+              <AppSelect
+                value={draftLevel}
+                onValueChange={setDraftLevel}
+                options={draftLevelOptions}
+                disabled={!draftLanguage}
+                triggerClassName="w-full"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Transcription status</label>
+              <AppSelect
+                value={draftTranscriptionStatus}
+                onValueChange={(v) => setDraftTranscriptionStatus(v as '' | TranscriptionStatus)}
+                options={TRANSCRIPTION_STATUS_OPTIONS}
+                triggerClassName="w-full"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold">Topic</label>
+              <TagMultiSelect
+                options={topicOptions}
+                value={draftTopics}
+                onChange={setDraftTopics}
+                placeholder="All topics"
+                emptyText="No topic tags"
+                allowSelectAll
+                className="w-full"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={resetDraft}
+              disabled={draftFilterCount === 0}
+            >
+              Reset filters
+            </Button>
+            <Button onClick={applyFilters}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {publishTarget && (
         <PublishRequestDialog
