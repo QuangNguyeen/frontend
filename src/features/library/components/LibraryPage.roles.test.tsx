@@ -31,7 +31,18 @@ vi.mock('../hooks/useVideos', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../hooks/useVideos')>();
   return {
     ...actual,
-    useVideos: () => ({ data: [sampleVideo], isLoading: false, isError: false, refetch: vi.fn() }),
+    useVideoCatalog: () => ({
+      data: {
+        pages: [{ items: [sampleVideo], total: 1, page: 1, total_pages: 1 }],
+        pageParams: [1],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+    }),
     useDeleteVideo: () => ({ mutate: vi.fn() }),
     useImportVideo: () => ({ mutate: vi.fn(), isPending: false }),
   };

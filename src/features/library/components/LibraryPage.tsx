@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLibraryFiltersStore } from '../hooks/useLibraryFiltersStore';
-import { useVideos, useDeleteVideo } from '../hooks/useVideos';
+import { useVideoCatalog, useDeleteVideo } from '../hooks/useVideos';
 import { useActiveTopicTags } from '../hooks/useTopicTags';
 import { SubtitleEditorDialog } from './SubtitleEditorDialog';
 import { ModeSelectDialog } from '@/features/dictation/components/ModeSelectDialog';
@@ -281,11 +281,22 @@ export function LibraryPage() {
     [tags],
   );
 
-  const { data: videos = [], isLoading, isError, refetch } = useVideos({
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useVideoCatalog({
     language: selectedLang !== 'All' ? selectedLang : undefined,
     level: effectiveSelectedLevel !== 'All' ? effectiveSelectedLevel : undefined,
     topic_tag: selectedTopics.length ? selectedTopics : undefined,
   });
+
+  const videos = data?.pages.flatMap((p) => p.items) ?? [];
+  const total = data?.pages[0]?.total ?? 0;
 
   const deleteMutation = useDeleteVideo();
 
@@ -301,7 +312,7 @@ export function LibraryPage() {
           title="Video Library"
           meta={(
             <CountBadge icon={<BarChart2 className="h-4 w-4" />}>
-              {videos.length} videos
+              {search ? `${filtered.length} / ${total}` : total} videos
             </CountBadge>
           )}
           actions={(
@@ -369,17 +380,33 @@ export function LibraryPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((video) => (
-              <VideoCard
-                key={video.id}
-                video={video}
-                isAdmin={isAdmin}
-                onDelete={(id) => deleteMutation.mutate(id)}
-                onTagFilter={addSelectedTopic}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filtered.map((video) => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  isAdmin={isAdmin}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                  onTagFilter={addSelectedTopic}
+                />
+              ))}
+            </div>
+            {hasNextPage && (
+              <div className="flex justify-center py-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="gap-2"
+                >
+                  {isFetchingNextPage && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Load more
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </PageScrollArea>
 

@@ -10,6 +10,7 @@ import type {
   TranscriptBulkUpdateResponse,
   VideoEditStatusResponse,
   VideoCatalogParams,
+  VideoListResponse,
   MyPracticeListParams,
   MyPracticeListResponse,
   PublishRequestCreateRequest,
@@ -60,6 +61,27 @@ export const videoService = {
     if (Array.isArray(data)) return data;
     if (data && Array.isArray(data.items)) return data.items;
     return [];
+  },
+
+  /**
+   * Public catalog with pagination metadata (items + total + total_pages).
+   * Used by the Library's "Load more" flow so the real catalog size is known.
+   */
+  listPage: async (params?: VideoCatalogParams): Promise<VideoListResponse> => {
+    const res = await httpClient.get('/api/v1/videos', {
+      params: cleanParams(params),
+      paramsSerializer: REPEAT_ARRAY_PARAMS,
+    });
+    const data = res.data;
+    if (Array.isArray(data)) {
+      return { items: data, total: data.length, page: 1, total_pages: 1 };
+    }
+    return {
+      items: Array.isArray(data?.items) ? data.items : [],
+      total: data?.total ?? 0,
+      page: data?.page ?? params?.page ?? 1,
+      total_pages: data?.total_pages ?? 1,
+    };
   },
 
   /** The current user's My Practice list (paginated). */

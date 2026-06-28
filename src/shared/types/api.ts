@@ -188,6 +188,14 @@ export interface MyPracticeListResponse {
   total_pages: number;
 }
 
+/** Paginated public catalog response (GET /videos). */
+export interface VideoListResponse {
+  items: VideoResponse[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
+
 export interface PublishRequestCreateRequest {
   /** Optional message, max 2000 chars. */
   message?: string;

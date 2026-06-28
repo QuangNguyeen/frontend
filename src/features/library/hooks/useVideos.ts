@@ -1,4 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { videoService } from '../services/videoService';
 import type {
@@ -23,12 +28,28 @@ export const videoKeys = {
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches the paginated/filtered video list.
+ * Fetches a single page of the filtered video list (returns just the array).
+ * Used where only a simple list is needed (pickers, dashboard).
  */
 export function useVideos(params?: VideoCatalogParams) {
   return useQuery({
     queryKey: videoKeys.list(params),
     queryFn: () => videoService.list(params),
+  });
+}
+
+/**
+ * Infinite/paginated catalog for the Library: exposes the real `total` and a
+ * "Load more" cursor so the count reflects every matching video, not just the
+ * first page.
+ */
+export function useVideoCatalog(params?: VideoCatalogParams) {
+  return useInfiniteQuery({
+    queryKey: [...videoKeys.list(params), 'infinite'],
+    queryFn: ({ pageParam }) => videoService.listPage({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.total_pages ? lastPage.page + 1 : undefined,
   });
 }
 
