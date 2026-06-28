@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { ALT_KEY_LABEL } from '@/shared/lib/platform';
 import type {
   PracticeMode, SentenceResultResponse, TranscriptResponse, WordDiffItem,
 } from '@/shared/types/api';
@@ -32,6 +33,7 @@ import { WordSavePanel } from './WordSavePanel';
 import { WordPopover } from './WordPopover';
 import { DottedHintBar } from './DottedHintBar';
 import { ClozeMode } from './ClozeMode';
+import { SentenceBuildMode } from './SentenceBuildMode';
 import { vocabularyService } from '@/features/vocabulary/services/vocabularyService';
 import { vocabularyKeys } from '@/features/vocabulary/hooks/useVocabulary';
 import { useQueryClient } from '@tanstack/react-query';
@@ -291,8 +293,8 @@ function DictationInputPanel({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <ShortcutHint keys={['Enter']} label="Check" />
           <ShortcutHint keys={['Tab']} label="Next" />
-          <ShortcutHint keys={['H']} label="Hint" />
-          <ShortcutHint keys={['R']} label="Replay" />
+          <ShortcutHint keys={[`${ALT_KEY_LABEL} H`]} label="Hint" />
+          <ShortcutHint keys={[`${ALT_KEY_LABEL} R`]} label="Replay" />
         </div>
         <PracticeActionButtons
           isVerifying={isVerifying}
@@ -330,7 +332,11 @@ export function DictationPage() {
   useEffect(() => { autoNextRef.current = autoNext; }, [autoNext]);
 
   // ── API state ──────────────────────────────────────────────────────────────
-  const modeParam = searchParams.get('mode') as PracticeMode | null;
+  // 'build' is a frontend-only UI mode; it runs on a regular 'sentence' session
+  // (the backend only knows 'sentence' | 'cloze') and submits reconstructed text.
+  const rawModeParam = searchParams.get('mode');
+  const [isBuildMode] = useState(rawModeParam === 'build');
+  const modeParam = (isBuildMode ? 'sentence' : rawModeParam) as PracticeMode | null;
   const [practiceMode] = useState<PracticeMode | null>(modeParam || 'sentence');
   const [clozeDifficulty] = useState<ClozeDifficulty>(
     (searchParams.get('difficulty') as ClozeDifficulty) || 'medium',
@@ -757,6 +763,47 @@ export function DictationPage() {
     advanceToNextSentence();
   }, [advanceToNextSentence]);
 
+  // ── Global Alt+key shortcuts (fire even while typing the answer) ──────────────
+  // Alt+R replay · Alt+H next hint · Alt+←/→ prev/next · Alt+Space play/pause.
+  // `e.code` is layout-independent so Alt combos work on macOS too.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      switch (e.code) {
+        case 'KeyR':
+          e.preventDefault();
+          handlePlay();
+          break;
+        case 'KeyH': {
+          e.preventDefault();
+          if (!currentSentence || allHintsRevealed) break;
+          const words = currentSentence.text.split(/\s+/).filter(Boolean);
+          const nextIdx = words.findIndex((_, i) => !revealedHintIndices.has(i));
+          if (nextIdx >= 0) handleRevealHintWord(nextIdx);
+          break;
+        }
+        case 'ArrowLeft':
+          e.preventDefault();
+          handlePrev();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          handleNext();
+          break;
+        case 'Space':
+          e.preventDefault();
+          if (isVideoPlaying) playerHandle.current?.pause();
+          else handlePlay();
+          break;
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [
+    handlePlay, handlePrev, handleNext, handleRevealHintWord,
+    currentSentence, allHintsRevealed, revealedHintIndices, isVideoPlaying, playerHandle,
+  ]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
   };
@@ -899,6 +946,19 @@ export function DictationPage() {
         <Loader2 className="h-5 w-5 animate-spin" />
         <span className="text-sm">Starting session…</span>
       </div>
+    );
+  }
+
+  if (isBuildMode) {
+    return (
+      <SentenceBuildMode
+        video={video}
+        videoId={videoId!}
+        sessionId={sessionId}
+        sentences={sentences}
+        playerHandle={playerHandle}
+        onCompleted={() => completeMutation.mutate()}
+      />
     );
   }
 

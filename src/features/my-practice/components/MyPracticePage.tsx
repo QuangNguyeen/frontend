@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   BarChart2,
   Clock,
@@ -72,6 +71,7 @@ import {
   TRANSCRIPTION_STATUS_OPTIONS,
   canRequestPublish,
 } from '../lib/status';
+import { ModeSelectDialog } from '@/features/dictation/components/ModeSelectDialog';
 import { ImportVideoDialog } from './ImportVideoDialog';
 import { PublishRequestDialog } from './PublishRequestDialog';
 import { TranscriptFeedbackDialog } from './TranscriptFeedbackDialog';
@@ -250,7 +250,6 @@ function MyPracticeCard({
 }
 
 export function MyPracticePage() {
-  const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [language, setLanguage] = useState('');
@@ -262,6 +261,7 @@ export function MyPracticePage() {
   const [importOpen, setImportOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<VideoResponse | null>(null);
+  const [practiceTarget, setPracticeTarget] = useState<VideoResponse | null>(null);
   const [publishTarget, setPublishTarget] = useState<VideoResponse | null>(null);
   const [reportTarget, setReportTarget] = useState<VideoResponse | null>(null);
 
@@ -361,8 +361,7 @@ export function MyPracticePage() {
   const totalPages = data?.total_pages ?? 1;
 
   const handlePractice = (video: VideoResponse) => {
-    const mode = video.is_auto_generated ? 'cloze' : 'sentence';
-    navigate(`/dictation/${video.id}?mode=${mode}`);
+    setPracticeTarget(video);
   };
 
   const handleConfirmRemove = () => {
@@ -585,6 +584,14 @@ export function MyPracticePage() {
           videoId={reportTarget.id}
           open={Boolean(reportTarget)}
           onOpenChange={(open) => !open && setReportTarget(null)}
+        />
+      )}
+
+      {practiceTarget && (
+        <ModeSelectDialog
+          video={practiceTarget}
+          open={Boolean(practiceTarget)}
+          onOpenChange={(open) => !open && setPracticeTarget(null)}
         />
       )}
 

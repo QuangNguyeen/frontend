@@ -236,6 +236,9 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
 
     useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
+        // Leave modifier combos (e.g. Alt+R / Alt+Space) to the practice-mode
+        // shortcut handlers so the player doesn't double-handle them.
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
         const tag = (document.activeElement as HTMLElement | null)?.tagName ?? '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return;
 

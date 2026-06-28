@@ -16,6 +16,7 @@ import { usePlayerPrefsStore } from '../hooks/usePlayerPrefsStore';
 import { cleanForSave } from '../hooks/useWordSave';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ALT_KEY_LABEL } from '@/shared/lib/platform';
 import type { ClozeDifficulty, WordPreviewResponse } from '@/shared/types/api';
 
 interface ClozeModeProps {
@@ -265,6 +266,38 @@ export function ClozeMode({
     return () => clearTimeout(t);
   }, [sessionId, playerHandle]);
 
+  // ── Global Alt+key shortcuts (fire even while typing the blanks) ─────────────
+  // Alt+Space play/pause · Alt+R replay segment · Alt+←/→ prev/next segment.
+  // `e.code` is layout-independent so Alt combos work on macOS too.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'KeyR':
+          e.preventDefault();
+          if (activeSegmentIdx >= 0 && segments[activeSegmentIdx]) {
+            playerHandle.current?.seekTo(segments[activeSegmentIdx].start_time);
+          }
+          resumePlayback();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          handlePrevSegment();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          handleNextSegment();
+          break;
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [handlePlayPause, handlePrevSegment, handleNextSegment, resumePlayback, activeSegmentIdx, segments, playerHandle]);
+
   const difficultyLabel = difficulty === 'easy' ? 'Easy' : difficulty === 'hard' ? 'Hard' : 'Medium';
 
   return (
@@ -442,6 +475,20 @@ export function ClozeMode({
               <div className="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Lightbulb className="h-3 w-3 text-amber-500 shrink-0" />
                 Click any word to save to flashcards
+              </div>
+              <div className="mx-4 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                {[
+                  [`${ALT_KEY_LABEL} + Space`, 'Play / Pause'],
+                  [`${ALT_KEY_LABEL} + R`, 'Replay'],
+                  [`${ALT_KEY_LABEL} + ← / →`, 'Prev / Next'],
+                ].map(([combo, label]) => (
+                  <span key={combo} className="inline-flex items-center gap-1">
+                    <kbd className="inline-flex h-5 items-center rounded-[6px] border border-border bg-muted px-1.5 text-[10px] font-bold text-muted-foreground">
+                      {combo}
+                    </kbd>
+                    {label}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
