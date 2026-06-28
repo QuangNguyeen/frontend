@@ -37,7 +37,7 @@ function forceLogout() {
   window.location.href = '/login';
 }
 
-async function refreshAccessToken(): Promise<string> {
+export async function refreshAccessToken(): Promise<string> {
   const refreshToken = localStorage.getItem('refresh_token');
   if (!refreshToken) throw new Error('No refresh token');
 

@@ -291,11 +291,11 @@ export function AdminTopicTagsPage() {
       description="Maintain the shared taxonomy used by public catalog content."
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="min-w-28 justify-center px-4">
             {isFetching ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
             Refresh
           </Button>
-          <Button size="sm" onClick={openCreate}>
+          <Button size="sm" onClick={openCreate} className="min-w-28 justify-center px-4">
             <Plus className="size-4" />
             New tag
           </Button>

@@ -11,6 +11,7 @@ interface AuthState {
   login: (user: UserResponse, accessToken: string, refreshToken: string) => void;
   logout: () => Promise<void>;
   setUser: (user: UserResponse) => void;
+  setTokens: (accessToken: string, refreshToken?: string | null) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -25,6 +26,13 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem('access_token', accessToken);
         localStorage.setItem('refresh_token', refreshToken);
         set({ user, accessToken, refreshToken, isAuthenticated: true });
+      },
+
+      setTokens: (accessToken, refreshToken) => {
+        const nextRefreshToken = refreshToken ?? localStorage.getItem('refresh_token');
+        localStorage.setItem('access_token', accessToken);
+        if (nextRefreshToken) localStorage.setItem('refresh_token', nextRefreshToken);
+        set({ accessToken, refreshToken: nextRefreshToken, isAuthenticated: true });
       },
 
       logout: async () => {
